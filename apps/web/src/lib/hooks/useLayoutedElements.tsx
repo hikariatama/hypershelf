@@ -101,7 +101,7 @@ export const useLayoutedElements = (setNodes: (nodes: RFNode[]) => void) => {
         const out: typeof segments = [];
         for (const s of segments) {
           const last = out[out.length - 1];
-          if (last && last.y === s.y && last.x + last.w === s.x) last.w += s.w;
+          if (last?.y === s.y && last.x + last.w === s.x) last.w += s.w;
           else out.push({ ...s });
         }
         segments = out;

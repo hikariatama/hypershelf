@@ -30,6 +30,7 @@ const initialState: State = {
   filters: null,
   isFiltering: false,
   hiddenFields: [],
+  frozenFields: [],
   fieldOrder: [],
   search: "",
   searchResults: [],

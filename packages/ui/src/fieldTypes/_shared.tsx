@@ -1,5 +1,12 @@
 import type { Ref } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useMutation } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { isEqual } from "lodash";
@@ -12,6 +19,12 @@ import { validateField } from "@hypershelf/convex/utils";
 import { useHypershelf } from "@hypershelf/lib/stores";
 import { cn } from "@hypershelf/lib/utils";
 
+import type {
+  FieldRendererTableCellProps,
+  TableCellEditorHandle,
+} from "./_abstractType";
+import { useScopedHotkeys } from "../hotkeys";
+import { Input } from "../primitives/input";
 import { ButtonWithKbd } from "../primitives/kbd-button";
 import { Textarea } from "../primitives/textarea";
 import { toast } from "../Toast";
@@ -62,29 +75,6 @@ export function ActionsRow({
       resizeObserver.disconnect();
     };
   }, [measure]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (showButton && e.key === "Escape") {
-        handleCancel();
-        (document.activeElement as HTMLElement).blur();
-      }
-      if (
-        !error &&
-        !updating &&
-        showButton &&
-        (e.metaKey || e.ctrlKey) &&
-        (e.key === "s" || e.key === "ы")
-      ) {
-        e.preventDefault();
-        handleSave();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => {
-      window.removeEventListener("keydown", handler);
-    };
-  }, [error, handleCancel, handleSave, showButton, updating]);
 
   const side = useMemo(() => {
     return innerWidth - (rect?.right ?? 0) > 200 ? "right" : "left";
@@ -144,7 +134,9 @@ export function ActionsRow({
                   "py-1 text-xs h-auto flex-1",
                   !!error && "cursor-not-allowed",
                 )}
-                onClick={handleSave}
+                onClick={() => {
+                  void handleSave();
+                }}
                 disabled={updating || !!error}
                 keys={["Meta", "S"]}
                 showKbd={!updating && !error}
@@ -167,13 +159,17 @@ export function ActionsRow({
 
 export function InlineString({
   assetId,
+  editorRef,
   fieldId,
   readonly = false,
+  tableCell,
   maxRows = 10,
 }: {
   assetId: Id<"assets">;
+  editorRef?: Ref<TableCellEditorHandle>;
   fieldId: Id<"fields">;
   readonly?: boolean;
+  tableCell?: FieldRendererTableCellProps;
   maxRows?: number;
 }) {
   const fieldInfo = useStoreWithEqualityFn(
@@ -186,6 +182,7 @@ export function InlineString({
     isEqual,
   );
   const { placeholder } = fieldInfo.extra ?? {};
+  const singleLine = fieldInfo.extra?.singleLine ?? false;
   const value = useHypershelf(
     (state) => state.assets[assetId]?.asset.metadata?.[fieldId],
   );
@@ -202,6 +199,31 @@ export function InlineString({
   const [isFocused, setIsFocused] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const measure = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const setDraftValue = useCallback(
+    (newValue: string) => {
+      setVal(newValue);
+      const dirty = newValue !== (value?.toString() ?? "");
+      setIsDirty(dirty);
+      const locker = useHypershelf.getState().assetsLocker;
+      if (dirty) {
+        void locker.acquire(assetId, fieldId);
+      } else {
+        void locker.release(assetId, fieldId);
+      }
+      setError(validateField(fieldInfo, newValue));
+    },
+    [assetId, fieldInfo, fieldId, value],
+  );
+
+  const focusField = useCallback(() => {
+    if (singleLine) {
+      inputRef.current?.focus();
+      return;
+    }
+    textareaRef.current?.focus();
+  }, [singleLine]);
 
   useEffect(() => {
     if (!isDirty && !isFocused && !error) {
@@ -215,58 +237,278 @@ export function InlineString({
 
   const showButton = useMemo(() => isDirty, [isDirty]);
   const updateAsset = useMutation(api.assets.update);
+  const canCommitWithEnter = singleLine || maxRows <= 1;
 
-  const handleSave = () => {
-    if (val !== value?.toString()) {
-      const validationError = validateField(fieldInfo, val);
-      if (validationError) {
-        setError(validationError);
-        return;
-      }
-
-      setError(null);
-      setUpdating(true);
-      updateAsset({
-        assetId,
-        fieldId,
-        value: val,
-      })
-        .then(() => setIsDirty(false))
-        .catch((e) => {
-          console.error("Failed to update asset:", e);
-          toast.error("Не смогли сохранить поле!");
-        })
-        .finally(() => {
-          setUpdating(false);
-          const locker = useHypershelf.getState().assetsLocker;
-          void locker.release(assetId, fieldId);
-        });
-    }
-  };
-
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setVal(value?.toString() ?? "");
     setError(null);
     setIsDirty(false);
     const locker = useHypershelf.getState().assetsLocker;
     void locker.release(assetId, fieldId);
-  };
+  }, [assetId, fieldId, value]);
+
+  const handleSave = useCallback(async () => {
+    if (val === value?.toString()) {
+      setIsDirty(false);
+      return true;
+    }
+
+    const validationError = validateField(fieldInfo, val);
+    if (validationError) {
+      setError(validationError);
+      return false;
+    }
+
+    setError(null);
+    setUpdating(true);
+
+    try {
+      await updateAsset({
+        assetId,
+        fieldId,
+        value: val,
+      });
+      setIsDirty(false);
+      return true;
+    } catch (e) {
+      console.error("Failed to update asset:", e);
+      toast.error("Не смогли сохранить поле!");
+      return false;
+    } finally {
+      setUpdating(false);
+      const locker = useHypershelf.getState().assetsLocker;
+      void locker.release(assetId, fieldId);
+    }
+  }, [assetId, fieldId, fieldInfo, updateAsset, val, value]);
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const newValue = e.target.value;
-      setVal(newValue);
-      const dirty = newValue !== (value?.toString() ?? "");
-      setIsDirty(dirty);
-      const locker = useHypershelf.getState().assetsLocker;
-      if (dirty) {
-        void locker.acquire(assetId, fieldId);
-      } else {
-        void locker.release(assetId, fieldId);
-      }
-      setError(validateField(fieldInfo, newValue));
+      setDraftValue(e.target.value);
     },
-    [assetId, fieldInfo, fieldId, value],
+    [setDraftValue],
+  );
+
+  const onKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        event.stopPropagation();
+        void handleSave().then((saved) => {
+          if (saved && tableCell) {
+            tableCell.onModeChange("navigation");
+          }
+        });
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        handleCancel();
+        tableCell?.onModeChange("navigation");
+        event.currentTarget.blur();
+        event.currentTarget.closest<HTMLElement>('[role="gridcell"]')?.focus();
+        return;
+      }
+
+      if (
+        event.key === "Enter" &&
+        canCommitWithEnter &&
+        tableCell?.active &&
+        tableCell.mode === "editing"
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        void handleSave().then((saved) => {
+          if (saved) {
+            tableCell.onModeChange("navigation");
+          }
+        });
+        return;
+      }
+
+      if (!tableCell || val.length !== 0) return;
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        event.stopPropagation();
+        tableCell.move(-1, 0);
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        event.stopPropagation();
+        tableCell.move(1, 0);
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        tableCell.move(0, -1);
+        return;
+      }
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        tableCell.move(0, 1);
+      }
+    },
+    [canCommitWithEnter, handleCancel, handleSave, tableCell, val.length],
+  );
+
+  useImperativeHandle(
+    editorRef,
+    (): TableCellEditorHandle => ({
+      beginEdit: () => {
+        tableCell?.onModeChange("editing");
+        setTimeout(() => {
+          focusField();
+        }, 0);
+      },
+      cancel: handleCancel,
+      commit: handleSave,
+      copyValue: () => ({
+        text: val,
+        type: "string",
+        value: val,
+      }),
+      focus: focusField,
+      kind: "simple",
+      pasteValue: ({ text, type, value }) => {
+        const nextValue =
+          type === "string" && typeof value === "string" ? value : text;
+        tableCell?.onModeChange("editing");
+        setDraftValue(nextValue);
+        setTimeout(() => {
+          focusField();
+          const element = singleLine ? inputRef.current : textareaRef.current;
+          if (!element) return;
+          const caretPosition = nextValue.length;
+          element.setSelectionRange(caretPosition, caretPosition);
+        }, 0);
+      },
+      typeText: (text) => {
+        tableCell?.onModeChange("editing");
+        const currentValue = val;
+        const nextValue = `${currentValue}${text}`;
+        setDraftValue(nextValue);
+        setTimeout(() => {
+          focusField();
+          const element = singleLine ? inputRef.current : textareaRef.current;
+          if (!element) return;
+          const caretPosition = nextValue.length;
+          element.setSelectionRange(caretPosition, caretPosition);
+        }, 0);
+      },
+    }),
+    [
+      focusField,
+      handleCancel,
+      handleSave,
+      setDraftValue,
+      singleLine,
+      tableCell,
+      val,
+    ],
+  );
+
+  useScopedHotkeys(
+    [
+      {
+        hotkey: "Mod+S",
+        callback: (event) => {
+          event.preventDefault();
+          void handleSave().then((saved) => {
+            if (saved && tableCell) {
+              tableCell.onModeChange("navigation");
+            }
+          });
+        },
+        enabled: showButton && !error && !updating,
+        scope: tableCell ? "table-editor" : "app",
+      },
+      {
+        hotkey: "Escape",
+        callback: (event) => {
+          event.preventDefault();
+          handleCancel();
+          tableCell?.onModeChange("navigation");
+        },
+        enabled:
+          tableCell?.mode === "editing" ||
+          showButton ||
+          Boolean(error) ||
+          Boolean(lazyError && isFocused),
+        scope: tableCell ? "table-editor" : "app",
+      },
+      {
+        hotkey: "Enter",
+        callback: (event) => {
+          if (!tableCell || !canCommitWithEnter) return;
+          event.preventDefault();
+          void handleSave().then((saved) => {
+            if (saved) {
+              tableCell.onModeChange("navigation");
+            }
+          });
+        },
+        enabled: Boolean(
+          canCommitWithEnter &&
+          tableCell?.active &&
+          tableCell.mode === "editing",
+        ),
+        scope: "table-editor",
+      },
+      {
+        hotkey: "Tab",
+        callback: (event) => {
+          if (!tableCell) return;
+          if (
+            !singleLine &&
+            event.currentTarget instanceof HTMLTextAreaElement
+          ) {
+            return;
+          }
+          event.preventDefault();
+          void handleSave().then((saved) => {
+            if (saved) {
+              tableCell.move(1, 0);
+            }
+          });
+        },
+        enabled: Boolean(tableCell?.active && tableCell.mode === "editing"),
+        scope: "table-editor",
+      },
+      {
+        hotkey: "Shift+Tab",
+        callback: (event) => {
+          if (!tableCell) return;
+          if (
+            !singleLine &&
+            event.currentTarget instanceof HTMLTextAreaElement
+          ) {
+            return;
+          }
+          event.preventDefault();
+          void handleSave().then((saved) => {
+            if (saved) {
+              tableCell.move(-1, 0);
+            }
+          });
+        },
+        enabled: Boolean(tableCell?.active && tableCell.mode === "editing"),
+        scope: "table-editor",
+      },
+    ],
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+      target: singleLine ? inputRef : textareaRef,
+    },
   );
 
   if (readonly) {
@@ -285,38 +527,73 @@ export function InlineString({
             {lockedBy}
           </span>
         )}
-        <Textarea
-          value={val}
-          onChange={onChange}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => {
-            if (val === (value?.toString() ?? "")) {
-              setError(null);
-            }
-            setIsFocused(false);
-          }}
-          placeholder={isFocused ? (placeholder ?? "Пиши тут...") : "пусто"}
-          className={cn(
-            "py-1 text-sm ease-in-out relative h-auto !border-0 !bg-transparent text-center shadow-none transition-shadow duration-200",
-            (error ?? (lazyError && !isDirty && isFocused)) &&
-              "!ring-red-500 !ring-2",
-            updating && "animate-pulse opacity-50",
-            !isFocused && !val && "italic !placeholder-muted-foreground/50",
-            lockedBy &&
-              "cursor-not-allowed text-foreground/70 !opacity-100 ring-2 ring-brand",
-            ((isDirty || error) ?? (lazyError && isFocused && !isDirty)) &&
-              "z-50",
-            lazyError &&
-              !isDirty &&
-              !isFocused &&
-              "!border-red-500 rounded-br-none rounded-bl-none !border-b-2",
-          )}
-          disabled={updating || !!lockedBy}
-          autosizeFrom={40}
-          autosizeTo={384}
-          minRows={1}
-          maxRows={maxRows}
-        />
+        {singleLine ? (
+          <Input
+            ref={inputRef}
+            value={val}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => {
+              if (val === (value?.toString() ?? "")) {
+                setError(null);
+              }
+              setIsFocused(false);
+            }}
+            placeholder={isFocused ? (placeholder ?? "Пиши тут...") : "пусто"}
+            className={cn(
+              "py-1 text-sm ease-in-out relative h-auto !border-0 !bg-transparent text-center shadow-none transition-shadow duration-200",
+              (error ?? (lazyError && !isDirty && isFocused)) &&
+                "!ring-red-500 !ring-2",
+              updating && "animate-pulse opacity-50",
+              !isFocused && !val && "italic !placeholder-muted-foreground/50",
+              lockedBy &&
+                "cursor-not-allowed text-foreground/70 !opacity-100 ring-2 ring-brand",
+              ((isDirty || error) ?? (lazyError && isFocused && !isDirty)) &&
+                "z-50",
+              lazyError &&
+                !isDirty &&
+                !isFocused &&
+                "!border-red-500 rounded-br-none rounded-bl-none !border-b-2",
+            )}
+            disabled={updating || !!lockedBy}
+          />
+        ) : (
+          <Textarea
+            ref={textareaRef}
+            value={val}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => {
+              if (val === (value?.toString() ?? "")) {
+                setError(null);
+              }
+              setIsFocused(false);
+            }}
+            placeholder={isFocused ? (placeholder ?? "Пиши тут...") : "пусто"}
+            className={cn(
+              "py-1 text-sm ease-in-out relative h-auto !border-0 !bg-transparent text-center shadow-none transition-shadow duration-200",
+              (error ?? (lazyError && !isDirty && isFocused)) &&
+                "!ring-red-500 !ring-2",
+              updating && "animate-pulse opacity-50",
+              !isFocused && !val && "italic !placeholder-muted-foreground/50",
+              lockedBy &&
+                "cursor-not-allowed text-foreground/70 !opacity-100 ring-2 ring-brand",
+              ((isDirty || error) ?? (lazyError && isFocused && !isDirty)) &&
+                "z-50",
+              lazyError &&
+                !isDirty &&
+                !isFocused &&
+                "!border-red-500 rounded-br-none rounded-bl-none !border-b-2",
+            )}
+            disabled={updating || !!lockedBy}
+            autosizeFrom={40}
+            autosizeTo={384}
+            minRows={1}
+            maxRows={maxRows}
+          />
+        )}
       </div>
       <ActionsRow
         showButton={

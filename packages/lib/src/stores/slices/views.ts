@@ -29,6 +29,7 @@ export const viewsSlice: ImmerStateCreator<ViewsSlice> = (set, get) => ({
         state.filters = { combinator: "and", rules: [] };
         state.isFiltering = false;
         state.hiddenFields = [];
+        state.frozenFields = [];
         state.fieldOrder = [];
       });
       return;
@@ -44,6 +45,7 @@ export const viewsSlice: ImmerStateCreator<ViewsSlice> = (set, get) => ({
       state.filters = view.filters ?? null;
       state.isFiltering = view.enableFiltering ?? false;
       state.hiddenFields = [...(view.hiddenFields ?? [])];
+      state.frozenFields = [...(view.frozenFields ?? [])];
       state.fieldOrder = [...(view.fieldOrder ?? [])];
       state.createdAssets = [];
     });

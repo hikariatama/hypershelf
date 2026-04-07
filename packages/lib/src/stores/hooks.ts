@@ -15,6 +15,7 @@ export const useIsViewDirty = () => {
       sorting: {},
       fieldOrder: [],
       hiddenFields: [],
+      frozenFields: [],
       enableFiltering: false,
       filters: undefined,
     };
@@ -23,6 +24,7 @@ export const useIsViewDirty = () => {
       !isEqual(view.sorting ?? {}, state.sorting) ||
       !isEqual(view.fieldOrder ?? [], state.fieldOrder) ||
       !isEqual(view.hiddenFields ?? [], state.hiddenFields) ||
+      !isEqual(view.frozenFields ?? [], state.frozenFields) ||
       (view.enableFiltering ?? false) !== state.isFiltering ||
       !filtersEqual(
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument

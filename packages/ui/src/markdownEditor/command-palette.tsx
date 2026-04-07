@@ -1,11 +1,11 @@
 import type { EditorView } from "@codemirror/view";
 import type { IconName } from "lucide-react/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { DynamicIcon } from "lucide-react/dynamic";
-import mousetrap from "mousetrap";
 
 import { useOS } from "@hypershelf/lib/hooks";
 
+import { useScopedHotkeys } from "../hotkeys";
 import {
   CommandDialog,
   CommandEmpty,
@@ -46,7 +46,7 @@ const formattingOptions: Record<
     title: string;
     keybind: string;
     keybindMac: string;
-    mousetrap: string;
+    hotkey: string;
     format: string;
   }
 > = {
@@ -54,98 +54,98 @@ const formattingOptions: Record<
     title: "Жирный",
     keybind: "Ctrl+B",
     keybindMac: "⌘B",
-    mousetrap: "mod+b",
+    hotkey: "Mod+B",
     format: "**{}**",
   },
   italic: {
     title: "Курсив",
     keybind: "Ctrl+I",
     keybindMac: "⌘I",
-    mousetrap: "mod+i",
+    hotkey: "Mod+I",
     format: "*{}*",
   },
   strikethrough: {
     title: "Зачеркнутый",
     keybind: "Ctrl+Shift+S",
     keybindMac: "⌘^S",
-    mousetrap: "mod+shift+s",
+    hotkey: "Mod+Shift+S",
     format: "~~{}~~",
   },
   link: {
     title: "Ссылка",
     keybind: "Ctrl+K",
     keybindMac: "⌘K",
-    mousetrap: "mod+k",
+    hotkey: "Mod+K",
     format: "[{}]()",
   },
   inlineCode: {
     title: "Встроенный код",
-    keybind: "Ctrl+K",
-    keybindMac: "⌘K",
-    mousetrap: "mod+k",
+    keybind: "Ctrl+E",
+    keybindMac: "⌘E",
+    hotkey: "Mod+E",
     format: "`{}`",
   },
   blockquote: {
     title: "Цитата",
     keybind: "Ctrl+Q",
     keybindMac: "⌘Q",
-    mousetrap: "mod+q",
+    hotkey: "Mod+Q",
     format: "> {}\n",
   },
   heading1: {
     title: "Заголовок 1",
     keybind: "Ctrl+1",
     keybindMac: "⌘1",
-    mousetrap: "mod+1",
+    hotkey: "Mod+1",
     format: "# {}\n",
   },
   heading2: {
     title: "Заголовок 2",
     keybind: "Ctrl+2",
     keybindMac: "⌘2",
-    mousetrap: "mod+2",
+    hotkey: "Mod+2",
     format: "## {}\n",
   },
   heading3: {
     title: "Заголовок 3",
     keybind: "Ctrl+3",
     keybindMac: "⌘3",
-    mousetrap: "mod+3",
+    hotkey: "Mod+3",
     format: "### {}\n",
   },
   heading4: {
     title: "Заголовок 4",
     keybind: "Ctrl+4",
     keybindMac: "⌘4",
-    mousetrap: "mod+4",
+    hotkey: "Mod+4",
     format: "#### {}\n",
   },
   heading5: {
     title: "Заголовок 5",
     keybind: "Ctrl+5",
     keybindMac: "⌘5",
-    mousetrap: "mod+5",
+    hotkey: "Mod+5",
     format: "##### {}\n",
   },
   unorderedList: {
     title: "Ненумерованный список",
     keybind: "Ctrl+Shift+U",
     keybindMac: "⌘^U",
-    mousetrap: "mod+shift+u",
+    hotkey: "Mod+Shift+U",
     format: "- {}\n",
   },
   orderedList: {
     title: "Нумерованный список",
     keybind: "Ctrl+Shift+O",
     keybindMac: "⌘^O",
-    mousetrap: "mod+shift+o",
+    hotkey: "Mod+Shift+O",
     format: "1. {}\n",
   },
   taskList: {
     title: "Список задач",
     keybind: "Ctrl+Shift+T",
     keybindMac: "⌘^T",
-    mousetrap: "mod+shift+t",
+    hotkey: "Mod+Shift+T",
     format: "- [ ] {}\n",
   },
 };
@@ -171,25 +171,9 @@ export function MarkdownCommandPalette({
   isInFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!enabled) return;
-    const down = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === "p" || e.key === "з")) {
-        e.preventDefault();
-        setOpen(true);
-      }
-
-      if (e.key === "Escape" && open) {
-        e.preventDefault();
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
-  }, [open, enabled]);
-
   const os = useOS();
+  const editorTarget = viewRef?.current?.dom ?? null;
+  const hotkeysEnabled = Boolean(enabled && ((isInFocus ?? false) || open));
 
   const handleSelect = (
     template: (typeof TEMPLATES)[keyof typeof TEMPLATES],
@@ -243,18 +227,56 @@ export function MarkdownCommandPalette({
     [viewRef],
   );
 
-  useEffect(() => {
-    if (!isInFocus && !open) return;
-    Object.values(formattingOptions).forEach((option) => {
-      mousetrap.bind(option.mousetrap, (event) => {
+  useScopedHotkeys(
+    [
+      {
+        hotkey: "Mod+P",
+        callback: (event) => {
+          event.preventDefault();
+          setOpen(true);
+        },
+        enabled: Boolean(enabled && isInFocus),
+        scope: "markdown-editor",
+      },
+      {
+        hotkey: "Escape",
+        callback: (event) => {
+          event.preventDefault();
+          setOpen(false);
+        },
+        enabled: open,
+        scope: "markdown-editor",
+      },
+    ],
+    {
+      ignoreInputs: false,
+      target: typeof document === "undefined" ? null : document,
+    },
+  );
+
+  useScopedHotkeys(
+    Object.values(formattingOptions).map((option) => ({
+      hotkey: option.hotkey,
+      callback: (event) => {
         event.preventDefault();
         event.stopPropagation();
         applyFormatting(option.format);
-      });
-    });
+      },
+      enabled: hotkeysEnabled,
+      scope: "markdown-editor" as const,
+    })),
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+      target: editorTarget,
+    },
+  );
 
-    Object.entries(wrappingSymbols).forEach(([trigger, format]) => {
-      mousetrap.bind(trigger, (event) => {
+  useScopedHotkeys(
+    Object.entries(wrappingSymbols).map(([trigger, format]) => ({
+      hotkey: trigger,
+      callback: (event) => {
         if (!viewRef?.current) return;
         const view = viewRef.current;
         const selection = view.state.selection.main;
@@ -275,21 +297,17 @@ export function MarkdownCommandPalette({
             scrollIntoView: true,
           }),
         );
-      });
-    });
-
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    mousetrap.prototype.stopCallback = () => false;
-
-    return () => {
-      Object.values(formattingOptions).forEach((option) => {
-        mousetrap.unbind(option.mousetrap);
-      });
-      Object.keys(wrappingSymbols).forEach((symbol) => {
-        mousetrap.unbind(symbol);
-      });
-    };
-  }, [applyFormatting, isInFocus, open, viewRef]);
+      },
+      enabled: hotkeysEnabled,
+      scope: "markdown-editor" as const,
+    })),
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+      target: editorTarget,
+    },
+  );
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen} className="z-[9999999]">

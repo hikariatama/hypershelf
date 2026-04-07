@@ -169,7 +169,7 @@ export const acquireAsset = mutation({
       };
     }
 
-    if (existingLock && existingLock.userId === userId) {
+    if (existingLock?.userId === userId) {
       const expiresAt = Date.now() + 60 * 1000;
       await ctx.db.patch(existingLock._id, { expires: expiresAt });
       return { success: true, _logs: ["Asset lock renewed"] };
@@ -209,7 +209,7 @@ export const releaseAsset = mutation({
       )
       .unique();
 
-    if (!existingLock || existingLock.userId !== userId) {
+    if (existingLock?.userId !== userId) {
       return {
         success: false,
         error: "You do not hold the lock on this asset",
@@ -244,7 +244,7 @@ export const renewAsset = mutation({
       )
       .unique();
 
-    if (!existingLock || existingLock.userId !== userId) {
+    if (existingLock?.userId !== userId) {
       return {
         success: false,
         error: "You do not hold the lock on this asset",

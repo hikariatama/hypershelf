@@ -1,6 +1,7 @@
 import type { Transition } from "framer-motion";
 import type { IconName } from "lucide-react/dynamic";
-import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { AnimatePresence, motion } from "framer-motion";
 import { isEqual } from "lodash";
@@ -14,6 +15,8 @@ import { cn } from "@hypershelf/lib/utils";
 import { Button } from "@hypershelf/ui/primitives/button";
 import { TableHead } from "@hypershelf/ui/primitives/table";
 
+import { useTableFreeze } from "./freeze";
+import { FreezeButton } from "./FreezeButton";
 import { SortButton } from "./SortButton";
 import { VisibilityButton } from "./VisibilityButton";
 
@@ -22,10 +25,14 @@ const TRANSITION = { type: "spring", bounce: 0.2, duration: 0.3 } as Transition;
 export function HeaderCell({ fieldId }: { fieldId: Id<"fields"> }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: fieldId });
-  const style = {
-    transform: `translate3d(${transform?.x ?? 0}px, ${transform?.y ?? 0}px, 0)`,
-    transition,
-  };
+  const {
+    firstRightFrozenFieldId,
+    lastLeftFrozenFieldId,
+    registerHeaderCell,
+    modeByFieldId,
+    leftOffsetByFieldId,
+    rightOffsetByFieldId,
+  } = useTableFreeze();
   const fieldInfo = useStoreWithEqualityFn(
     useHypershelf,
     (state) => {
@@ -62,11 +69,47 @@ export function HeaderCell({ fieldId }: { fieldId: Id<"fields"> }) {
   const isHidden = useHypershelf((state) =>
     state.hiddenFields.includes(fieldId),
   );
+  const isFrozen = useHypershelf((state) =>
+    state.frozenFields.includes(fieldId),
+  );
+  const frozenMode = modeByFieldId[fieldId] ?? "inline";
+  const isLeftFrozenEdge =
+    frozenMode === "left" && lastLeftFrozenFieldId === fieldId;
+  const isRightFrozenEdge =
+    frozenMode === "right" && firstRightFrozenFieldId === fieldId;
+  const style: CSSProperties = {
+    transform: `translate3d(${transform?.x ?? 0}px, ${transform?.y ?? 0}px, 0)`,
+    transition,
+  };
+
+  if (frozenMode === "left") {
+    style.left = leftOffsetByFieldId[fieldId] ?? 0;
+  } else if (frozenMode === "right") {
+    style.right = rightOffsetByFieldId[fieldId] ?? 0;
+  }
+
+  const handleRef = useCallback(
+    (node: HTMLTableCellElement | null) => {
+      setNodeRef(node);
+      registerHeaderCell(fieldId, node);
+    },
+    [fieldId, registerHeaderCell, setNodeRef],
+  );
 
   if (!fieldInfo) return null;
 
   return (
-    <TableHead ref={setNodeRef} style={style} className="!h-auto !border-0">
+    <TableHead
+      ref={handleRef}
+      style={style}
+      className={cn(
+        "!h-auto border-l border-border",
+        frozenMode !== "inline" && "sticky z-[120] border-b bg-background",
+        isLeftFrozenEdge &&
+          "border-r border-border shadow-[6px_0_16px_-8px_rgba(0,0,0,0.8)]",
+        isRightFrozenEdge && "shadow-[-6px_0_16px_-8px_rgba(0,0,0,0.8)]",
+      )}
+    >
       <div className="flex items-center justify-center">
         <div className="gap-1 px-2 flex items-center">
           <div
@@ -102,6 +145,18 @@ export function HeaderCell({ fieldId }: { fieldId: Id<"fields"> }) {
                   transition={TRANSITION}
                 >
                   <VisibilityButton fieldId={fieldId} isHidden={isHidden} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <AnimatePresence>
+              {(isFrozen || actionsExpanded) && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20, width: 0 }}
+                  animate={{ opacity: 1, x: 0, width: "auto" }}
+                  exit={{ opacity: 0, x: 20, width: 0 }}
+                  transition={TRANSITION}
+                >
+                  <FreezeButton fieldId={fieldId} isFrozen={isFrozen} />
                 </motion.div>
               )}
             </AnimatePresence>

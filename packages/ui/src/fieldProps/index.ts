@@ -18,6 +18,7 @@ import PlaceholderProp from "./placeholder";
 import RegexProp from "./regex";
 import RegexErrorProp from "./regexError";
 import RequiredProp from "./required";
+import SingleLineProp from "./singleLine";
 import SubnetProp from "./subnet";
 
 export const fieldProps = [
@@ -33,6 +34,7 @@ export const fieldProps = [
   PlaceholderProp,
   RegexProp,
   RegexErrorProp,
+  SingleLineProp,
   SubnetProp,
   MultiselectProp,
 ];

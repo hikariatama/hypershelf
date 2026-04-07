@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { isEqual } from "lodash";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
@@ -5,6 +6,10 @@ import type { Id } from "@hypershelf/convex/_generated/dataModel";
 import { useHypershelf } from "@hypershelf/lib/stores";
 import { cn } from "@hypershelf/lib/utils";
 
+import type {
+  FieldRendererTableCellProps,
+  TableCellEditorHandle,
+} from "./fieldTypes/_abstractType";
 import { fieldTypes } from "./fieldTypes";
 
 function Unset({ required }: { required?: boolean }) {
@@ -22,12 +27,16 @@ function Unset({ required }: { required?: boolean }) {
 
 export function FieldRenderer({
   assetId,
+  editorRef,
   fieldId,
   readonly = false,
+  tableCell,
 }: {
   assetId: Id<"assets">;
+  editorRef?: Ref<TableCellEditorHandle>;
   fieldId: Id<"fields">;
   readonly?: boolean;
+  tableCell?: FieldRendererTableCellProps;
 }) {
   const value = useStoreWithEqualityFn(
     useHypershelf,
@@ -51,8 +60,10 @@ export function FieldRenderer({
       return (
         <fieldTypeRenderer.component
           assetId={assetId}
+          editorRef={editorRef}
           fieldId={fieldId}
           readonly={readonly}
+          tableCell={tableCell}
         />
       );
     }

@@ -1,5 +1,6 @@
 import { DOMParser } from "@xmldom/xmldom";
 
+import type { XmlElement } from "./utils";
 import {
   childrenByLocalName,
   elementsByLocalName,
@@ -29,7 +30,7 @@ export type VSphereDetails = {
   snaps?: VSphereSnap[];
 };
 
-function readMor(el: Element | null): string {
+function readMor(el: XmlElement | null): string {
   if (!el) return "";
   const mor = firstChildByLocalName(el, "ManagedObjectReference");
   return text(mor ?? el).trim();

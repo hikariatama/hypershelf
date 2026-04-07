@@ -18,8 +18,8 @@
   },
   "dependencies": {
     "@hypershelf/convex": "workspace:*",
-    "@xyflow/react": "^12.8.6",
-    "lodash": "^4.17.21",
+    "@xyflow/react": "^12.10.2",
+    "lodash": "^4.18.1",
     "react-querybuilder": "catalog:",
     "zod": "catalog:",
     "zustand": "catalog:"
@@ -28,7 +28,7 @@
     "@hypershelf/eslint-config": "workspace:*",
     "@hypershelf/prettier-config": "workspace:*",
     "@hypershelf/tsconfig": "workspace:*",
-    "@types/lodash": "^4.17.20",
+    "@types/lodash": "^4.17.24",
     "eslint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:"

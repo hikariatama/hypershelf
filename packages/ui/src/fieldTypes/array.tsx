@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Ref } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useMutation } from "convex/react";
 import { isEqual } from "lodash";
 import { useStoreWithEqualityFn } from "zustand/traditional";
@@ -10,19 +18,29 @@ import { validateField } from "@hypershelf/convex/utils";
 import { useHypershelf } from "@hypershelf/lib/stores";
 import { cn } from "@hypershelf/lib/utils";
 
-import type { FieldPropConfig } from "./_abstractType";
+import type { TagInputHandle } from "../primitives/tag-input";
+import type {
+  FieldPropConfig,
+  FieldRendererTableCellProps,
+  TableCellEditorHandle,
+} from "./_abstractType";
+import { useScopedHotkeys } from "../hotkeys";
 import { TagInput } from "../primitives/tag-input";
 import { toast } from "../Toast";
 import { ActionsRow } from "./_shared";
 
 export function InlineArray({
   assetId,
+  editorRef,
   fieldId,
   readonly = false,
+  tableCell,
 }: {
   assetId: Id<"assets">;
+  editorRef?: Ref<TableCellEditorHandle>;
   fieldId: Id<"fields">;
   readonly?: boolean;
+  tableCell?: FieldRendererTableCellProps;
 }) {
   const fieldInfo = useStoreWithEqualityFn(
     useHypershelf,
@@ -51,7 +69,9 @@ export function InlineArray({
   const [updating, setUpdating] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [draftValue, setDraftValue] = useState("");
   const measure = useRef<HTMLDivElement>(null);
+  const tagInputRef = useRef<TagInputHandle>(null);
 
   useEffect(() => {
     if (!isDirty) {
@@ -62,104 +82,188 @@ export function InlineArray({
     }
   }, [value, isDirty, val]);
 
-  const showButton = useMemo(() => isDirty, [isDirty]);
+  useEffect(() => {
+    const locker = useHypershelf.getState().assetsLocker;
+    if (isDirty || draftValue.trim().length > 0) {
+      void locker.acquire(assetId, fieldId);
+      return;
+    }
+    if (!updating) {
+      void locker.release(assetId, fieldId);
+    }
+  }, [assetId, draftValue, fieldId, isDirty, updating]);
+
+  const showButton = useMemo(
+    () => isDirty || draftValue.trim().length > 0,
+    [draftValue, isDirty],
+  );
   const updateAsset = useMutation(api.assets.update);
 
-  const handleSave = () => {
-    if (!isEqual(val, value)) {
-      const validationError = validateField(fieldInfo, val);
-      if (validationError) {
-        setError(validationError);
-        return;
-      }
+  const handleSave = useCallback(async () => {
+    const draftResult = tagInputRef.current?.commitDraft();
+    if (draftResult?.status === "invalid") {
+      setError(draftResult.error ?? "Неверное значение");
+      return false;
+    }
 
-      setError(null);
-      setUpdating(true);
-      updateAsset({
+    const nextValue = draftResult?.tags ?? val;
+
+    if (isEqual(nextValue, value)) {
+      setIsDirty(false);
+      return true;
+    }
+
+    const validationError = validateField(fieldInfo, nextValue);
+    if (validationError) {
+      setError(validationError);
+      return false;
+    }
+
+    setError(null);
+    setUpdating(true);
+
+    try {
+      await updateAsset({
         assetId,
         fieldId,
-        value: val,
-      })
-        .then(() => setIsDirty(false))
-        .catch((e) => {
-          console.error("Failed to update asset:", e);
-          toast.error("Не смогли сохранить поле!");
-        })
-        .finally(() => {
-          setUpdating(false);
-          const locker = useHypershelf.getState().assetsLocker;
-          void locker.release(assetId, fieldId);
-        });
+        value: nextValue,
+      });
+      setIsDirty(false);
+      return true;
+    } catch (e) {
+      console.error("Failed to update asset:", e);
+      toast.error("Не смогли сохранить поле!");
+      return false;
+    } finally {
+      setUpdating(false);
+      const locker = useHypershelf.getState().assetsLocker;
+      void locker.release(assetId, fieldId);
     }
-  };
+  }, [assetId, fieldId, fieldInfo, updateAsset, val, value]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
+    tagInputRef.current?.clearDraft();
     setVal(value);
     setError(null);
     setIsDirty(false);
     const locker = useHypershelf.getState().assetsLocker;
     void locker.release(assetId, fieldId);
-  };
+  }, [assetId, fieldId, value]);
 
   const onChange = useCallback(
     (incoming: string[]) => {
       setVal(incoming);
       const dirty = !isEqual(incoming, value);
       setIsDirty(dirty);
-      const locker = useHypershelf.getState().assetsLocker;
-      if (dirty) {
-        void locker.acquire(assetId, fieldId);
-      } else {
-        void locker.release(assetId, fieldId);
-      }
       setError(validateField(fieldInfo, incoming));
     },
-    [assetId, fieldInfo, fieldId, value],
+    [fieldInfo, value],
   );
 
   const validateTag = useCallback(
     (tag: string) => {
-      if (fieldInfo.extra?.listObjectType) {
-        if (fieldInfo.extra.listObjectType === "number" && isNaN(Number(tag)))
-          return false;
-        if (
-          fieldInfo.extra.listObjectType === "string" &&
-          fieldInfo.extra.listObjectExtra?.regex &&
-          !new RegExp(fieldInfo.extra.listObjectExtra.regex).test(tag)
-        )
-          return false;
-        if (
-          fieldInfo.extra.listObjectType === "string" &&
-          fieldInfo.extra.listObjectExtra?.minLength &&
-          tag.length < fieldInfo.extra.listObjectExtra.minLength
-        )
-          return false;
-        if (
-          fieldInfo.extra.listObjectType === "string" &&
-          fieldInfo.extra.listObjectExtra?.maxLength &&
-          tag.length > fieldInfo.extra.listObjectExtra.maxLength
-        )
-          return false;
-        if (
-          fieldInfo.extra.listObjectType === "number" &&
-          fieldInfo.extra.listObjectExtra?.minValue !== undefined &&
-          Number(tag) < fieldInfo.extra.listObjectExtra.minValue
-        )
-          return false;
-        if (
-          fieldInfo.extra.listObjectType === "number" &&
-          fieldInfo.extra.listObjectExtra?.maxValue !== undefined &&
-          Number(tag) > fieldInfo.extra.listObjectExtra.maxValue
-        )
-          return false;
-      }
-      return true;
+      return validateField(
+        {
+          type: fieldInfo.extra?.listObjectType ?? "string",
+          extra: fieldInfo.extra?.listObjectExtra,
+          required: false,
+        },
+        tag,
+      );
     },
     [fieldInfo],
   );
 
+  useImperativeHandle(
+    editorRef,
+    (): TableCellEditorHandle => ({
+      beginEdit: () => {
+        tableCell?.onModeChange("editing");
+        tagInputRef.current?.focus();
+      },
+      cancel: handleCancel,
+      commit: handleSave,
+      copyValue: () => ({
+        text: (val as string[]).join(", "),
+        type: "array",
+        value: val,
+      }),
+      focus: () => {
+        tagInputRef.current?.focus();
+      },
+      kind: "complex",
+      pasteValue: ({ text, type, value: clipboardValue }) => {
+        const nextValue =
+          type === "array" && Array.isArray(clipboardValue)
+            ? clipboardValue.filter(
+                (entry): entry is string => typeof entry === "string",
+              )
+            : text
+                .split(",")
+                .map((entry) => entry.trim())
+                .filter(Boolean);
+
+        tableCell?.onModeChange("editing");
+        setVal(nextValue);
+        setIsDirty(!isEqual(nextValue, value));
+        setError(validateField(fieldInfo, nextValue));
+        tagInputRef.current?.focus();
+      },
+      typeText: (text) => {
+        tableCell?.onModeChange("editing");
+        const currentDraft = draftValue;
+        tagInputRef.current?.setDraftText(`${currentDraft}${text}`);
+      },
+    }),
+    [draftValue, fieldInfo, handleCancel, handleSave, tableCell, value, val],
+  );
+
+  useScopedHotkeys(
+    [
+      {
+        hotkey: "Mod+S",
+        callback: (event) => {
+          event.preventDefault();
+          void handleSave().then((saved) => {
+            if (saved && tableCell) {
+              tableCell.onModeChange("navigation");
+            }
+          });
+        },
+        enabled:
+          (showButton || Boolean(error)) &&
+          !updating &&
+          (tableCell
+            ? tableCell.active && tableCell.mode === "editing"
+            : isFocused),
+        scope: tableCell ? "table-editor" : "app",
+      },
+      {
+        hotkey: "Escape",
+        callback: (event) => {
+          event.preventDefault();
+          handleCancel();
+          tableCell?.onModeChange("navigation");
+          tagInputRef.current?.blur();
+        },
+        enabled:
+          tableCell?.mode === "editing" ||
+          showButton ||
+          Boolean(error) ||
+          Boolean(lazyError && isFocused),
+        scope: tableCell ? "table-editor" : "app",
+      },
+    ],
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+      target: measure,
+    },
+  );
+
   if (readonly) {
-    return val && Array.isArray(val) && val.length > 0 ? (
+    return Array.isArray(val) && val.length > 0 ? (
       <div>{(val as ValueType[]).join(", ")}</div>
     ) : (
       <div className="text-muted-foreground/50 italic">пусто</div>
@@ -175,6 +279,7 @@ export function InlineArray({
           </span>
         )}
         <TagInput
+          ref={tagInputRef}
           tags={val as string[]}
           setTags={onChange}
           placeholder={placeholder ?? "Добавить..."}
@@ -196,9 +301,15 @@ export function InlineArray({
           draggable
           disabled={!!lockedBy || updating}
           validateTag={validateTag}
+          onDraftChange={(nextDraft) => {
+            setDraftValue(nextDraft);
+            if (!nextDraft.trim() && isEqual(val, value)) {
+              setError(null);
+            }
+          }}
           onFocus={() => setIsFocused(true)}
           onBlur={() => {
-            if (val === (value || [])) {
+            if (!draftValue.trim() && isEqual(val, value)) {
               setError(null);
             }
             setIsFocused(false);
@@ -220,6 +331,7 @@ export function InlineArray({
 }
 
 const config = {
+  cellClipboard: "enabled",
   key: "array",
   label: "Список",
   icon: "brackets",

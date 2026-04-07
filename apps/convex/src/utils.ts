@@ -176,15 +176,22 @@ const buildPrimitiveSchema = (kind: FieldKind, extra: Extra): ZodTypeAny => {
   }
 
   if (schema instanceof z.ZodString) {
-    if (extra.regex)
-      schema = schema.regex(
+    let stringSchema = schema;
+    if (typeof extra.regex === "string")
+      stringSchema = stringSchema.regex(
         new RegExp(extra.regex),
-        extra.regexError ?? "Значение не соответствует регулярке",
+        typeof extra.regexError === "string"
+          ? extra.regexError
+          : "Значение не соответствует регулярке",
       );
-    if (extra.minLength && schema instanceof z.ZodString)
-      schema = schema.min(extra.minLength);
-    if (extra.maxLength && schema instanceof z.ZodString)
-      schema = schema.max(extra.maxLength);
+    if (extra.minLength) stringSchema = stringSchema.min(extra.minLength);
+    if (extra.maxLength) stringSchema = stringSchema.max(extra.maxLength);
+    schema = extra.singleLine
+      ? stringSchema.refine(
+          (value) => !/[\r\n]/.test(value),
+          "Нужна одна строка",
+        )
+      : stringSchema;
   }
 
   if (schema instanceof z.ZodNumber) {

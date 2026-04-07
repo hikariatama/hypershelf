@@ -40,9 +40,7 @@ export function FloatingEdge({
   );
   const highlighted = useHypershelf(
     (state) =>
-      state.highlightLink &&
-      state.highlightLink.from === source &&
-      state.highlightLink.to === target,
+      state.highlightLink?.from === source && state.highlightLink.to === target,
   );
   const setHighlightLink = useHypershelf((state) => state.setHighlightLink);
   const [labelX, setLabelX] = useState(0);
@@ -124,10 +122,7 @@ export function FloatingEdge({
         style={{ ...style, pointerEvents: "none" }}
       />
       {hasLabel && !translucent && (
-        <PopoverPrimitive.Root
-          open={highlighted ?? false}
-          onOpenChange={setOpen}
-        >
+        <PopoverPrimitive.Root open={highlighted} onOpenChange={setOpen}>
           <PopoverPrimitive.Trigger asChild>
             <path
               ref={hitboxRef}

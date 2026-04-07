@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Ref } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { useMutation } from "convex/react";
@@ -19,7 +27,12 @@ import { api } from "@hypershelf/convex/_generated/api";
 import { useHypershelf } from "@hypershelf/lib/stores";
 import { cn } from "@hypershelf/lib/utils";
 
-import type { FieldPropConfig } from "./_abstractType";
+import type {
+  FieldPropConfig,
+  FieldRendererTableCellProps,
+  TableCellEditorHandle,
+} from "./_abstractType";
+import { HotkeyScopeProvider, useScopedHotkeys } from "../hotkeys";
 import { MarkdownEditor, MarkdownViewer } from "../markdownEditor";
 import { Button } from "../primitives/button";
 import { ButtonWithKbd } from "../primitives/kbd-button";
@@ -31,11 +44,13 @@ function MarkdownEditorDialogContent({
   assetId,
   onClose,
   readonly,
+  tableCell,
 }: {
   fieldId: Id<"fields">;
   assetId: Id<"assets">;
   onClose: () => void;
   readonly: boolean;
+  tableCell?: FieldRendererTableCellProps;
 }) {
   const placeholder = useHypershelf(
     (state) => state.fields[fieldId]?.field.extra?.placeholder ?? "",
@@ -94,25 +109,16 @@ function MarkdownEditorDialogContent({
     [val, value, mdPreset],
   );
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (
-        isDirty &&
-        (e.metaKey || e.ctrlKey) &&
-        (e.key === "s" || e.key === "ы")
-      ) {
-        e.preventDefault();
-        onSave(val);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => {
-      window.removeEventListener("keydown", handler);
-    };
-  }, [isDirty, onSave, val]);
-
   return (
-    <>
+    <HotkeyScopeProvider
+      scope="dialog"
+      blockScopes={["app", "table", "table-editor", "markdown-editor"]}
+    >
+      <MarkdownDialogHotkeys
+        isDirty={isDirty}
+        onClose={handleClose}
+        onSave={() => onSave(val)}
+      />
       <Dialog.Overlay asChild>
         <motion.div
           className="inset-0 fixed z-[9999]"
@@ -135,9 +141,8 @@ function MarkdownEditorDialogContent({
       <Dialog.Content
         onEscapeKeyDown={(e) => {
           e.preventDefault();
-          if (e.key === "Escape" && (e.metaKey || e.ctrlKey)) {
-            handleClose();
-          }
+          handleClose();
+          tableCell?.onModeChange("navigation");
         }}
         onPointerDownOutside={(e) => e.preventDefault()}
         className="inset-0 p-4 fixed z-[9999] flex items-center justify-center"
@@ -147,8 +152,8 @@ function MarkdownEditorDialogContent({
         </Dialog.Title>
         <Dialog.Description>
           <VisuallyHidden>
-            Нажмите Ctrl(Cmd)+Shift+Tab, чтобы редактировать, Ctrl(Cmd)+Esc
-            чтобы выйти и Ctrl(Cmd)+S чтобы сохранить.
+            Нажмите Ctrl(Cmd)+Shift+Tab, чтобы редактировать, Escape чтобы выйти
+            и Ctrl(Cmd)+S чтобы сохранить.
           </VisuallyHidden>
         </Dialog.Description>
         <motion.div
@@ -183,7 +188,7 @@ function MarkdownEditorDialogContent({
               variant="outline"
               onClick={handleClose}
               disabled={updating}
-              keys={["Meta", "Esc"]}
+              keys={["Esc"]}
             >
               Отмена
             </ButtonWithKbd>
@@ -203,8 +208,51 @@ function MarkdownEditorDialogContent({
           </div>
         </motion.div>
       </Dialog.Content>
-    </>
+    </HotkeyScopeProvider>
   );
+}
+
+function MarkdownDialogHotkeys({
+  isDirty,
+  onClose,
+  onSave,
+}: {
+  isDirty: boolean;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  useScopedHotkeys(
+    [
+      {
+        hotkey: "Mod+S",
+        callback: (event) => {
+          event.preventDefault();
+          if (isDirty) {
+            onSave();
+          }
+        },
+        enabled: isDirty,
+        scope: "dialog",
+      },
+      {
+        hotkey: "Escape",
+        callback: (event) => {
+          event.preventDefault();
+          onClose();
+        },
+        enabled: true,
+        scope: "dialog",
+      },
+    ],
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+      target: typeof document === "undefined" ? null : document,
+    },
+  );
+
+  return null;
 }
 
 function DownloadButton({
@@ -355,14 +403,19 @@ function DownloadButton({
 
 function InlineMarkdown({
   assetId,
+  editorRef,
   fieldId,
   readonly = false,
+  tableCell,
 }: {
   assetId: Id<"assets">;
+  editorRef?: Ref<TableCellEditorHandle>;
   fieldId: Id<"fields">;
   readonly?: boolean;
+  tableCell?: FieldRendererTableCellProps;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const lockedBy = useHypershelf(
     (state) => state.lockedFields[assetId]?.[fieldId],
   );
@@ -370,13 +423,35 @@ function InlineMarkdown({
     (state) => !state.assets[assetId]?.asset.metadata?.[fieldId],
   );
 
-  const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen) {
-      const locker = useHypershelf.getState().assetsLocker;
-      void locker.release(assetId, fieldId);
-    }
-    setOpen(isOpen);
-  };
+  const handleOpenChange = useCallback(
+    (isOpen: boolean) => {
+      if (!isOpen) {
+        const locker = useHypershelf.getState().assetsLocker;
+        void locker.release(assetId, fieldId);
+        tableCell?.onModeChange("navigation");
+      }
+      setOpen(isOpen);
+    },
+    [assetId, fieldId, tableCell],
+  );
+
+  useImperativeHandle(
+    editorRef,
+    (): TableCellEditorHandle => ({
+      beginEdit: () => {
+        tableCell?.onModeChange("editing");
+        setOpen(true);
+      },
+      cancel: () => {
+        handleOpenChange(false);
+      },
+      focus: () => {
+        triggerRef.current?.focus();
+      },
+      kind: "complex",
+    }),
+    [handleOpenChange, tableCell],
+  );
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
@@ -395,6 +470,7 @@ function InlineMarkdown({
         >
           <Dialog.Trigger asChild>
             <Button
+              ref={triggerRef}
               variant="ghost"
               size="sm"
               disabled={!!lockedBy}
@@ -432,7 +508,8 @@ function InlineMarkdown({
                   fieldId={fieldId}
                   assetId={assetId}
                   readonly={readonly}
-                  onClose={() => setOpen(false)}
+                  onClose={() => handleOpenChange(false)}
+                  tableCell={tableCell}
                 />
               </Dialog.Portal>
             )}
@@ -444,6 +521,7 @@ function InlineMarkdown({
 }
 
 const config = {
+  cellClipboard: "disabled",
   key: "markdown",
   label: "Маркдаун",
   icon: "text-select",

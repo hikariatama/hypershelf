@@ -6,6 +6,7 @@ import { syntaxTree } from "@codemirror/language";
 import { RangeSet, StateField } from "@codemirror/state";
 import { Decoration, EditorView, keymap, WidgetType } from "@codemirror/view";
 import markdoc from "@markdoc/markdoc";
+import { getKeyStateTracker } from "@tanstack/hotkeys";
 import { DynamicIcon } from "lucide-react/dynamic";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
@@ -14,20 +15,6 @@ import { previewModeFacet } from "./preview-facet";
 
 const mimeCache = new Map<string, string>();
 const fileNameCache = new Map<string, string>();
-let metaPressed = false;
-let listenersInitialized = false;
-
-function initializeKeyListeners() {
-  if (listenersInitialized) return;
-  listenersInitialized = true;
-
-  window.addEventListener("keydown", (e) => {
-    if (e.metaKey || e.ctrlKey) metaPressed = true;
-  });
-  window.addEventListener("keyup", (e) => {
-    if (!e.metaKey && !e.ctrlKey) metaPressed = false;
-  });
-}
 
 const patternTag =
   /{%\s*(?<closing>\/)?(?<tag>[a-zA-Z0-9-_]+)(?<attrs>\s+[^]+)?\s*(?<self>\/)?%}\s*$/m;
@@ -75,6 +62,8 @@ function guessIcon(mime: string | null): string {
 }
 
 class EmbedWidget extends WidgetType {
+  private readonly cleanupMap = new WeakMap<HTMLElement, () => void>();
+
   constructor(private readonly src: string) {
     super();
   }
@@ -188,6 +177,8 @@ class EmbedWidget extends WidgetType {
     };
 
     const renderFile = (mime: string | null, fileName: string | null) => {
+      this.cleanupMap.get(wrapper)?.();
+
       const block = document.createElement("div");
       block.className = "cm-markdoc-fileWidget";
 
@@ -214,19 +205,26 @@ class EmbedWidget extends WidgetType {
       block.appendChild(label);
 
       const updateTooltip = () => {
-        if (metaPressed && block.matches(":hover")) {
+        if (
+          getKeyStateTracker().isAnyKeyHeld(["Meta", "Control"]) &&
+          block.matches(":hover")
+        ) {
           block.classList.add("cm-markdoc-fileWidget-meta");
         } else {
           block.classList.remove("cm-markdoc-fileWidget-meta");
         }
       };
 
-      window.addEventListener("keydown", updateTooltip);
-      window.addEventListener("keyup", updateTooltip);
+      const unsubscribe = getKeyStateTracker().store.subscribe(updateTooltip);
       block.addEventListener("mouseenter", updateTooltip);
-      block.addEventListener("mouseleave", () =>
-        block.removeAttribute("title"),
-      );
+      block.addEventListener("mouseleave", updateTooltip);
+
+      this.cleanupMap.set(wrapper, () => {
+        unsubscribe.unsubscribe();
+        root.unmount();
+        block.removeEventListener("mouseenter", updateTooltip);
+        block.removeEventListener("mouseleave", updateTooltip);
+      });
 
       this.attachCommonHandlers(block, view);
       wrapper.replaceChildren(block);
@@ -250,6 +248,11 @@ class EmbedWidget extends WidgetType {
 
   ignoreEvent() {
     return true;
+  }
+
+  destroy(dom: HTMLElement) {
+    this.cleanupMap.get(dom)?.();
+    this.cleanupMap.delete(dom);
   }
 }
 
@@ -394,16 +397,10 @@ const arrowDownIntoBlock = {
 export default function renderBlock(config: Config): Extension {
   const field = StateField.define<DecorationSet>({
     create(state) {
-      if (!listenersInitialized && typeof window !== "undefined") {
-        initializeKeyListeners();
-      }
       return RangeSet.of(replaceBlocks(state, config), true);
     },
 
     update(_, transaction) {
-      if (!listenersInitialized && typeof window !== "undefined") {
-        initializeKeyListeners();
-      }
       return RangeSet.of(replaceBlocks(transaction.state, config), true);
     },
     provide(f) {

@@ -55,6 +55,7 @@ export type State = {
   filters: RuleGroupType | null;
   isFiltering: boolean;
   hiddenFields: Id<"fields">[];
+  frozenFields: Id<"fields">[];
   fieldOrder: Id<"fields">[];
   search: string;
   searchResults: Id<"assets">[];
@@ -84,6 +85,7 @@ export type TableSlice = {
   setSorting: (sorting: SortingDict) => void;
   toggleSorting: (fieldId: Id<"fields">) => void;
   toggleVisibility: (fieldId: Id<"fields">) => void;
+  toggleFrozen: (fieldId: Id<"fields">) => void;
   toggleHiding: () => void;
   reorderField: (from: Id<"fields">, to: Id<"fields">) => void;
   setFilters: (filters: RuleGroupType | null) => void;

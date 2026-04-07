@@ -39,13 +39,13 @@ export const fetchHostAction = internalAction({
     if (!data) return;
 
     const redis = getClient(env.REDIS_URL, env.REDIS_PASSWORD);
-    const { id, hostname, ip } = data;
+    const { cacheKey, id, hostname, ip } = data;
     console.log(`Fetching vSphere data for ${hostname} (${ip})...`);
 
     const incoming = await fetchHost({ hostname, ip }, redis);
     await ctx.runMutation(internal.vsphere.markAsIndexed, {
       id,
-      cache_key: `${hostname}-${ip}`,
+      cache_key: cacheKey,
     });
     if (incoming.length === 0) {
       console.log(`No vSphere data found for ${hostname} (${ip})`);
@@ -249,9 +249,7 @@ export const fetchTopologyStructureAction = action({
       await new Promise((resolve) => setTimeout(resolve, 2000));
       return {
         structure: (
-          await import(
-            "./lib/integrations/vsphere/mocks/vsphere-topology-structure.json"
-          )
+          await import("./lib/integrations/vsphere/mocks/vsphere-topology-structure.json")
         ).default,
         fetchTime: new Date().toISOString(),
       };

@@ -10,6 +10,7 @@ import { Annoyed } from "lucide-react";
 import { api } from "@hypershelf/convex/_generated/api";
 import { useBrowser, useConvex } from "@hypershelf/lib/hooks";
 import { useHypershelf } from "@hypershelf/lib/stores";
+import { HypershelfHotkeysProvider } from "@hypershelf/ui/hotkeys";
 import { Button } from "@hypershelf/ui/primitives/button";
 import { toast, Toaster } from "@hypershelf/ui/toast";
 
@@ -167,13 +168,15 @@ export default function ClientLayout({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <HeaderContentProvider>
-        <Header />
-        <main className="px-2 pt-12 min-h-screen">{children}</main>
-        {pathname !== "/" && <Footer />}
-        <UpdateNotifier />
-        <Toaster />
-      </HeaderContentProvider>
+      <HypershelfHotkeysProvider>
+        <HeaderContentProvider>
+          <Header />
+          <main className="px-2 pt-12 min-h-screen">{children}</main>
+          {pathname !== "/" && <Footer />}
+          <UpdateNotifier />
+          <Toaster />
+        </HeaderContentProvider>
+      </HypershelfHotkeysProvider>
     </QueryClientProvider>
   );
 }

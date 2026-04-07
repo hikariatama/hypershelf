@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { useMutation } from "convex/react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -7,10 +8,15 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import type { Id } from "@hypershelf/convex/_generated/dataModel";
 import { api } from "@hypershelf/convex/_generated/api";
+import { matchesVsphereCacheKey } from "@hypershelf/convex/lib/vsphereCacheKey";
 import { useHypershelf } from "@hypershelf/lib/stores";
 import { cn } from "@hypershelf/lib/utils";
 
-import type { FieldPropConfig } from "./_abstractType";
+import type {
+  FieldPropConfig,
+  FieldRendererTableCellProps,
+  TableCellEditorHandle,
+} from "./_abstractType";
 import VSphereIcon from "../icons/VSphereIcon";
 import { Button } from "../primitives/button";
 import {
@@ -46,7 +52,12 @@ function InlineHostnameStatus({
       if (!linkedVM) return { status: "not_found" };
       if (!assetHostname || !assetIp) return { status: "none" };
       if (!asset.vsphereLastSync) return { status: "not_synced" };
-      if (asset.vsphereCacheKey !== `${assetHostname}-${assetIp}`)
+      if (
+        !matchesVsphereCacheKey(asset.vsphereCacheKey, {
+          hostname: assetHostname,
+          ip: assetIp,
+        })
+      )
         return { status: "not_synced" };
       if (
         linkedVM.hostname === assetHostname &&
@@ -185,20 +196,26 @@ function InlineHostnameStatus({
 
 function InlineHostname({
   assetId,
+  editorRef,
   fieldId,
   readonly,
+  tableCell,
 }: {
   assetId: Id<"assets">;
+  editorRef?: Ref<TableCellEditorHandle>;
   fieldId: Id<"fields">;
   readonly?: boolean;
+  tableCell?: FieldRendererTableCellProps;
 }) {
   if (readonly) {
     return (
       <InlineString
         assetId={assetId}
+        editorRef={editorRef}
         fieldId={fieldId}
         maxRows={1}
         readonly={readonly}
+        tableCell={tableCell}
       />
     );
   }
@@ -208,15 +225,18 @@ function InlineHostname({
       <InlineHostnameStatus assetId={assetId} fieldId={fieldId} />
       <InlineString
         assetId={assetId}
+        editorRef={editorRef}
         fieldId={fieldId}
         maxRows={1}
         readonly={readonly}
+        tableCell={tableCell}
       />
     </div>
   );
 }
 
 const config = {
+  cellClipboard: "enabled",
   key: "magic__hostname",
   label: "Хостнейм",
   icon: "globe",

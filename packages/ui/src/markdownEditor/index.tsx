@@ -27,6 +27,7 @@ import type { Id } from "@hypershelf/convex/_generated/dataModel";
 import { api } from "@hypershelf/convex/_generated/api";
 import { cn } from "@hypershelf/lib/utils";
 
+import { HotkeyScopeProvider } from "../hotkeys";
 import { MarkdownCommandPalette } from "./command-palette";
 import config from "./markdoc";
 import { previewModeFacet } from "./preview-facet";
@@ -223,7 +224,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }, [generateUploadUrl, uploadFiles]);
 
   return (
-    <>
+    <HotkeyScopeProvider scope="markdown-editor">
       <div
         className={cn(
           "p-3 rounded-md border border-input bg-input/30",
@@ -265,13 +266,13 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
             </motion.button>
           )}
         </motion.div>
+        <MarkdownCommandPalette
+          enabled={isInFocus && !disabled}
+          viewRef={viewRef}
+          isInFocus={isInFocus}
+        />
       </div>
-      <MarkdownCommandPalette
-        enabled={isInFocus && !disabled}
-        viewRef={viewRef}
-        isInFocus={isInFocus}
-      />
-    </>
+    </HotkeyScopeProvider>
   );
 };
 

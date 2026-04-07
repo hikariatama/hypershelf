@@ -47,6 +47,9 @@ export const fieldsSlice: ImmerStateCreator<FieldsSlice> = (set, get) => ({
           continue;
         if (!state.fieldIds.includes(id)) {
           state.fieldIds.push(id);
+          if (state.fieldOrder.length > 0) {
+            state.fieldOrder.push(id);
+          }
         }
         if (
           magicFieldKeys.some((mf) => mf === field.field.type) &&
@@ -104,6 +107,9 @@ export const fieldsSlice: ImmerStateCreator<FieldsSlice> = (set, get) => ({
           );
           if (magicFieldType) {
             delete state.magicFields[magicFieldType[0] as MagicFieldTypes];
+          }
+          if (state.fieldOrder.includes(id)) {
+            state.fieldOrder.splice(state.fieldOrder.indexOf(id), 1);
           }
           state.fieldIds.splice(state.fieldIds.indexOf(id), 1);
         }

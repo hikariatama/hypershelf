@@ -2,6 +2,7 @@ import type { FieldPropConfig } from "./_abstractType";
 import { InlineString } from "./_shared";
 
 const config = {
+  cellClipboard: "enabled",
   key: "magic__ip",
   label: "IP",
   icon: "ethernet-port",

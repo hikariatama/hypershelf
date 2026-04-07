@@ -7,6 +7,14 @@ import importPlugin from "eslint-plugin-import";
 import turboPlugin from "eslint-plugin-turbo";
 import tseslint from "typescript-eslint";
 
+const turboRecommended = turboPlugin.configs?.recommended;
+const turboRules =
+  turboRecommended &&
+  !Array.isArray(turboRecommended) &&
+  "rules" in turboRecommended
+    ? turboRecommended.rules
+    : {};
+
 /**
  * All packages that leverage t3-env should use this rule
  */
@@ -54,7 +62,7 @@ export default tseslint.config(
       ...tseslint.configs.stylisticTypeChecked,
     ],
     rules: {
-      ...turboPlugin.configs.recommended.rules,
+      ...turboRules,
       "@typescript-eslint/consistent-type-definitions": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",

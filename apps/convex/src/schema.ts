@@ -16,6 +16,7 @@ export const fieldSchema = {
     v.object({
       description: v.optional(v.string()),
       placeholder: v.optional(v.string()),
+      singleLine: v.optional(v.boolean()),
       mdPreset: v.optional(v.string()),
       regex: v.optional(v.string()),
       regexError: v.optional(v.string()),
@@ -33,6 +34,7 @@ export const fieldSchema = {
       listObjectType: v.optional(v.string()),
       listObjectExtra: v.optional(
         v.object({
+          singleLine: v.optional(v.boolean()),
           regex: v.optional(v.string()),
           regexError: v.optional(v.string()),
           minLength: v.optional(v.number()),
@@ -145,6 +147,7 @@ export const fileSchema = {
 export const viewSchema = {
   name: v.optional(v.string()),
   hiddenFields: v.optional(v.array(v.id("fields"))),
+  frozenFields: v.optional(v.array(v.id("fields"))),
   fieldOrder: v.optional(v.array(v.id("fields"))),
   sorting: v.optional(
     v.record(v.id("fields"), v.union(v.literal("asc"), v.literal("desc"))),

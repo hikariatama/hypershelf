@@ -20,11 +20,10 @@ import { Skeleton } from "./skeleton";
 
 export type IconData = (typeof iconsData)[number];
 
-interface IconPickerProps
-  extends Omit<
-    React.ComponentPropsWithoutRef<typeof PopoverTrigger>,
-    "onSelect" | "onOpenChange"
-  > {
+interface IconPickerProps extends Omit<
+  React.ComponentPropsWithoutRef<typeof PopoverTrigger>,
+  "onSelect" | "onOpenChange"
+> {
   value?: IconName;
   defaultValue?: IconName;
   onValueChange?: (value: IconName) => void;

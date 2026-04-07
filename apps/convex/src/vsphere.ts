@@ -9,6 +9,11 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import {
+  buildVsphereCacheKey,
+  matchesVsphereCacheKey,
+  normalizeVsphereLookupValue,
+} from "./lib/vsphereCacheKey";
 import { vSphereSchema } from "./schema";
 
 export const getVsphereData = internalQuery({
@@ -38,25 +43,30 @@ export const getVsphereData = internalQuery({
     }
 
     for (const asset of assets) {
-      const hostname = asset.metadata?.[magicHostname._id] as
+      const rawHostname = asset.metadata?.[magicHostname._id] as
         | string
         | undefined;
-      const ip = asset.metadata?.[magicIp._id] as string | undefined;
+      const rawIp = asset.metadata?.[magicIp._id] as string | undefined;
+      const hostname = normalizeVsphereLookupValue(rawHostname);
+      const ip = normalizeVsphereLookupValue(rawIp);
+      const cacheKey = buildVsphereCacheKey({ hostname, ip });
       if (
+        cacheKey &&
         asset.vsphereLastSync &&
         Date.now() - asset.vsphereLastSync < 12 * 60 * 60 * 1000 &&
-        asset.vsphereCacheKey === `${hostname}-${ip}` &&
+        matchesVsphereCacheKey(asset.vsphereCacheKey, { hostname, ip }) &&
         !args.id
       ) {
         continue;
       }
-      if (!hostname && !ip) {
+      if (!cacheKey) {
         continue;
       }
       return {
+        cacheKey,
         id: asset._id,
-        hostname: hostname ?? null,
-        ip: ip ?? null,
+        hostname,
+        ip,
       };
     }
     return null;

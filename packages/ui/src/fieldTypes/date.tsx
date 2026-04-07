@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import type { Ref } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useMutation } from "convex/react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -9,7 +17,12 @@ import { api } from "@hypershelf/convex/_generated/api";
 import { useHypershelf } from "@hypershelf/lib/stores";
 import { cn } from "@hypershelf/lib/utils";
 
-import type { FieldPropConfig } from "./_abstractType";
+import type {
+  FieldPropConfig,
+  FieldRendererTableCellProps,
+  TableCellEditorHandle,
+} from "./_abstractType";
+import { useScopedHotkeys } from "../hotkeys";
 import { Button } from "../primitives/button";
 import { Calendar } from "../primitives/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../primitives/popover";
@@ -18,12 +31,16 @@ import { AnimateTransition } from "./_shared";
 
 function InlineDate({
   assetId,
+  editorRef,
   fieldId,
   readonly = false,
+  tableCell,
 }: {
   assetId: Id<"assets">;
+  editorRef?: Ref<TableCellEditorHandle>;
   fieldId: Id<"fields">;
   readonly?: boolean;
+  tableCell?: FieldRendererTableCellProps;
 }) {
   const placeholder = useHypershelf(
     (state) => state.fields[fieldId]?.field.extra?.placeholder,
@@ -48,6 +65,7 @@ function InlineDate({
   );
   const [updating, setUpdating] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setDate(initialDate);
@@ -55,13 +73,28 @@ function InlineDate({
 
   const updateAsset = useMutation(api.assets.update);
 
-  if (readonly) {
-    return (
-      <div className={cn(!date && "text-muted-foreground/50 italic")}>
-        {date ? format(date, "PPP", { locale: ru }) : "пусто"}
-      </div>
-    );
-  }
+  const applyDateValue = useCallback(
+    (selectedDate: Date) => {
+      setDate(selectedDate);
+      setUpdating(true);
+      updateAsset({
+        assetId,
+        fieldId,
+        value: selectedDate.toISOString(),
+      })
+        .catch((e) => {
+          console.error("Failed to update asset:", e);
+          toast.error("Не смогли сохранить поле!");
+        })
+        .finally(() => {
+          setUpdating(false);
+          tableCell?.onModeChange("navigation");
+          const locker = useHypershelf.getState().assetsLocker;
+          void locker.release(assetId, fieldId);
+        });
+    },
+    [assetId, fieldId, tableCell, updateAsset],
+  );
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
     setPopoverOpen(false);
@@ -70,35 +103,111 @@ function InlineDate({
     const isSame = selectedDate.toISOString() === initialDate?.toISOString();
     if (isSame) return;
 
-    setDate(selectedDate);
-    setUpdating(true);
-    updateAsset({
-      assetId,
-      fieldId,
-      value: selectedDate.toISOString(),
-    })
-      .catch((e) => {
-        console.error("Failed to update asset:", e);
-        toast.error("Не смогли сохранить поле!");
-      })
-      .finally(() => {
-        setUpdating(false);
-        const locker = useHypershelf.getState().assetsLocker;
-        void locker.release(assetId, fieldId);
-      });
+    applyDateValue(selectedDate);
   };
 
-  const handleOpenChange = (open: boolean) => {
-    if (updating) return;
-    setPopoverOpen(open);
-    const locker = useHypershelf.getState().assetsLocker;
-    if (open) {
-      void locker.acquire(assetId, fieldId);
-    } else {
-      void locker.release(assetId, fieldId);
-      setDate(initialDate);
-    }
-  };
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (updating) return;
+      setPopoverOpen(open);
+      if (!open) {
+        tableCell?.onModeChange("navigation");
+      }
+      const locker = useHypershelf.getState().assetsLocker;
+      if (open) {
+        void locker.acquire(assetId, fieldId);
+      } else {
+        void locker.release(assetId, fieldId);
+        setDate(initialDate);
+      }
+    },
+    [assetId, fieldId, initialDate, tableCell, updating],
+  );
+
+  useImperativeHandle(
+    editorRef,
+    (): TableCellEditorHandle => ({
+      beginEdit: () => {
+        tableCell?.onModeChange("editing");
+        handleOpenChange(true);
+      },
+      cancel: () => {
+        handleOpenChange(false);
+      },
+      copyValue: () => ({
+        text: initialDate?.toISOString() ?? "",
+        type: "date",
+        value: initialDate?.toISOString() ?? null,
+      }),
+      focus: () => {
+        triggerRef.current?.focus();
+      },
+      kind: "simple",
+      pasteValue: ({ text, type, value: clipboardValue }) => {
+        const rawValue =
+          type === "date" && typeof clipboardValue === "string"
+            ? clipboardValue
+            : text.trim();
+        if (!rawValue) return;
+        const nextDate = new Date(rawValue);
+        if (Number.isNaN(nextDate.getTime())) return;
+        applyDateValue(nextDate);
+      },
+    }),
+    [applyDateValue, handleOpenChange, initialDate, tableCell],
+  );
+
+  useScopedHotkeys(
+    [
+      {
+        hotkey: "Escape",
+        callback: (event) => {
+          event.preventDefault();
+          handleOpenChange(false);
+        },
+        enabled: popoverOpen,
+        scope: tableCell ? "table-editor" : "app",
+      },
+      {
+        hotkey: "Tab",
+        callback: (event) => {
+          if (!tableCell) return;
+          event.preventDefault();
+          handleOpenChange(false);
+          tableCell.move(1, 0);
+        },
+        enabled:
+          popoverOpen && tableCell?.active && tableCell.mode === "editing",
+        scope: "table-editor",
+      },
+      {
+        hotkey: "Shift+Tab",
+        callback: (event) => {
+          if (!tableCell) return;
+          event.preventDefault();
+          handleOpenChange(false);
+          tableCell.move(-1, 0);
+        },
+        enabled:
+          popoverOpen && tableCell?.active && tableCell.mode === "editing",
+        scope: "table-editor",
+      },
+    ],
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+      target: typeof document === "undefined" ? null : document,
+    },
+  );
+
+  if (readonly) {
+    return (
+      <div className={cn(!date && "text-muted-foreground/50 italic")}>
+        {date ? format(date, "PPP", { locale: ru }) : "пусто"}
+      </div>
+    );
+  }
 
   return (
     <div className="gap-2 flex flex-col">
@@ -110,6 +219,7 @@ function InlineDate({
       <Popover open={popoverOpen} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
+            ref={triggerRef}
             variant="ghost"
             className={cn(
               "py-1 text-sm font-normal h-auto w-full justify-start text-left",
@@ -167,6 +277,7 @@ function InlineDate({
 }
 
 const config = {
+  cellClipboard: "enabled",
   key: "date",
   label: "Дата",
   icon: "calendar",

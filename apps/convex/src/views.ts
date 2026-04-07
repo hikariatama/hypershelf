@@ -45,6 +45,7 @@ export const create = mutation({
   args: {
     name: v.string(),
     hiddenFields: v.optional(v.array(v.id("fields"))),
+    frozenFields: v.optional(v.array(v.id("fields"))),
     fieldOrder: v.optional(v.array(v.id("fields"))),
     sorting: v.optional(
       v.record(v.id("fields"), v.union(v.literal("asc"), v.literal("desc"))),
@@ -62,6 +63,7 @@ export const create = mutation({
       userId,
       name: args.name,
       hiddenFields: args.hiddenFields ?? [],
+      frozenFields: args.frozenFields ?? [],
       fieldOrder: args.fieldOrder ?? [],
       sorting: args.sorting ?? {},
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

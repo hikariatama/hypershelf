@@ -31,7 +31,7 @@ function JsonUploader({ onUploaded }: { onUploaded: () => void }) {
 
   const handleFile = useCallback(
     (file: File | null) => {
-      if (file && file.type === "application/json") {
+      if (file?.type === "application/json") {
         const reader = new FileReader();
         reader.onload = (e) => {
           const content = e.target?.result;

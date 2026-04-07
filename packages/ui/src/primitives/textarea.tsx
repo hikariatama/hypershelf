@@ -174,7 +174,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       measure();
     }, [measure]);
 
-    const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const handleInput: React.ComponentProps<"textarea">["onInput"] = (e) => {
       onInput?.(e);
       measure();
     };

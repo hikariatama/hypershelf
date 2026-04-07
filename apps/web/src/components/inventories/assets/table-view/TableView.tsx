@@ -1,5 +1,5 @@
 import type { DragEndEvent } from "@dnd-kit/core";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import {
   closestCenter,
   DndContext,
@@ -21,9 +21,21 @@ import { Table, TableBody, TableHeader } from "@hypershelf/ui/primitives/table";
 
 import { formatQuery } from "~/components/query-builder";
 import { DataRowStable } from "./DataRow";
+import { TableFreezeProvider, useTableFreezeLayoutValue } from "./freeze";
+import { TableKeyboardProvider } from "./keyboard";
 import { SmartHeader } from "./SmartHeader";
 
 export function TableView() {
+  const freezeLayout = useTableFreezeLayoutValue();
+  const { setContainerNode } = freezeLayout;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const setContainerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerRef.current = node;
+      setContainerNode(node);
+    },
+    [setContainerNode],
+  );
   const sensors = useSensors(
     useSensor(MouseSensor),
     useSensor(TouchSensor),
@@ -138,31 +150,47 @@ export function TableView() {
   );
 
   return (
-    <>
+    <TableFreezeProvider value={freezeLayout}>
       {sortedAssetIds.length ? (
-        <div className="h-8 backdrop-blur-lg absolute z-[99] w-[calc(100vw-1rem)] rounded-tl-md rounded-tr-md border border-border bg-background/70" />
+        <div className="backdrop-blur-lg absolute z-[99] h-[calc(2rem+1px)] w-[calc(100vw-1rem)] rounded-tl-md rounded-tr-md border border-border bg-background/70" />
       ) : null}
       <div
-        className="relative h-[calc(100dvh-3.5rem)] overflow-auto overscroll-none rounded-md border"
-        tabIndex={-1}
+        ref={setContainerRef}
+        className="relative h-[calc(100dvh-3.5rem)] overflow-auto overscroll-none rounded-md border outline-none focus:outline-none focus-visible:outline-none"
       >
         {sortedAssetIds.length ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
+          <TableKeyboardProvider
+            columnCount={freezeLayout.orderedVisibleFieldIds.length + 1}
+            containerRef={containerRef}
+            rowCount={sortedAssetIds.length}
           >
-            <Table className="table-auto">
-              <TableHeader className="top-0 sticky z-[100] !border-0">
-                <SmartHeader />
-              </TableHeader>
-              <TableBody className="relative">
-                {sortedAssetIds.map((assetId) => (
-                  <DataRowStable key={assetId} assetId={assetId} />
-                ))}
-              </TableBody>
-            </Table>
-          </DndContext>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <Table
+                className="border-spacing-0 table-auto border-separate"
+                role="grid"
+              >
+                <TableHeader
+                  className="top-0 sticky z-[100] !border-0"
+                  role="rowgroup"
+                >
+                  <SmartHeader />
+                </TableHeader>
+                <TableBody className="relative" role="rowgroup">
+                  {sortedAssetIds.map((assetId, rowIndex) => (
+                    <DataRowStable
+                      key={assetId}
+                      assetId={assetId}
+                      rowIndex={rowIndex}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </DndContext>
+          </TableKeyboardProvider>
         ) : (
           <div className="p-12 gap-2 mt-4 max-w-lg mx-auto flex flex-col items-center rounded-xl border border-border text-center">
             <div className="size-10 mb-2 flex items-center justify-center rounded-md bg-muted">
@@ -176,6 +204,6 @@ export function TableView() {
           </div>
         )}
       </div>
-    </>
+    </TableFreezeProvider>
   );
 }

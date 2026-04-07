@@ -55,6 +55,20 @@ export const tableSlice: ImmerStateCreator<TableSlice> = (set) => ({
       }
     });
   },
+  toggleFrozen: (fieldId) => {
+    set((state) => {
+      if (state.frozenFields.includes(fieldId)) {
+        for (let i = 0; i < state.frozenFields.length; i++) {
+          if (state.frozenFields[i] === fieldId) {
+            state.frozenFields.splice(i, 1);
+            break;
+          }
+        }
+      } else {
+        state.frozenFields.push(fieldId);
+      }
+    });
+  },
   reorderField: (from, to) =>
     set((state) => {
       if (state.fieldOrder.length === 0) {
@@ -309,7 +323,7 @@ export const tableSlice: ImmerStateCreator<TableSlice> = (set) => ({
             const field = Object.values(state.fields).find(
               (f) => f.field._id === key,
             );
-            if (field && field.field.type === "markdown") weight = 0.5;
+            if (field?.field.type === "markdown") weight = 0.5;
           }
           const base = textScore(s);
           bestScore = Math.max(bestScore, boost(base, weight));

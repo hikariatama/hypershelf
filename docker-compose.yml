@@ -39,7 +39,7 @@ services:
     network_mode: host
 
   postgres:
-    image: postgres:latest
+    image: postgres:17
     volumes:
       - pg_data:/var/lib/postgresql/data
     environment:

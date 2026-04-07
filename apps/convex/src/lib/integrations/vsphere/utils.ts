@@ -1,5 +1,23 @@
 "use node";
 
+type XmlNodeList = {
+  length: number;
+  item(index: number): XmlNode | null;
+};
+
+export type XmlNode = {
+  nodeType: number;
+  nodeName: string;
+  localName?: string | null;
+  nodeValue?: string | null;
+  childNodes: XmlNodeList;
+};
+
+export type XmlElement = XmlNode & {
+  localName?: string | null;
+  getAttribute(name: string): string | null;
+};
+
 export function envelope(inner: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:vim25="urn:vim25" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -17,13 +35,16 @@ export function escapeXml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function isElement(n: Node): n is Element {
+function isElement(n: XmlNode): n is XmlElement {
   return n.nodeType === 1;
 }
 
-export function elementsByLocalName(root: Node, local: string): Element[] {
-  const out: Element[] = [];
-  const stack: Node[] = [root];
+export function elementsByLocalName(
+  root: XmlNode,
+  local: string,
+): XmlElement[] {
+  const out: XmlElement[] = [];
+  const stack: XmlNode[] = [root];
   while (stack.length) {
     const n = stack.pop();
     if (
@@ -33,36 +54,34 @@ export function elementsByLocalName(root: Node, local: string): Element[] {
     )
       out.push(n);
     if (n) {
-      const children = n.childNodes as NodeListOf<ChildNode> | null;
-      if (children)
-        for (let i = 0; i < children.length; i++)
-          stack.push(children.item(i) as Node);
+      for (let i = 0; i < n.childNodes.length; i++) {
+        const child = n.childNodes.item(i);
+        if (child) stack.push(child);
+      }
     }
   }
   return out;
 }
 
 export function firstChildByLocalName(
-  el: Element,
+  el: XmlElement,
   local: string,
   maxDepth = 1,
-): Element | null {
+): XmlElement | null {
   if (maxDepth <= 0) {
     return null;
   }
 
-  const childElements: Element[] = [];
-  const children = el.childNodes as NodeListOf<ChildNode> | null;
-  if (children)
-    for (let i = 0; i < children.length; i++) {
-      const n = children.item(i) as Node;
-      if (isElement(n)) {
-        if (n.localName === local || n.nodeName.split(":").pop() === local) {
-          return n;
-        }
-        childElements.push(n);
+  const childElements: XmlElement[] = [];
+  for (let i = 0; i < el.childNodes.length; i++) {
+    const n = el.childNodes.item(i);
+    if (n && isElement(n)) {
+      if (n.localName === local || n.nodeName.split(":").pop() === local) {
+        return n;
       }
+      childElements.push(n);
     }
+  }
 
   if (maxDepth > 1) {
     for (const child of childElements) {
@@ -76,29 +95,31 @@ export function firstChildByLocalName(
   return null;
 }
 
-export function text(n: Node): string {
-  const walker: Node[] = [n];
+export function text(n: XmlNode): string {
+  const walker: XmlNode[] = [n];
   let s = "";
   while (walker.length) {
     const cur = walker.pop();
-    if (cur && cur.nodeType === 3) s += cur.nodeValue ?? "";
+    if (cur?.nodeType === 3) s += cur.nodeValue ?? "";
     if (cur) {
-      const children = cur.childNodes as NodeListOf<ChildNode> | null;
-      if (children)
-        for (let i = 0; i < children.length; i++)
-          walker.push(children.item(i) as Node);
+      for (let i = 0; i < cur.childNodes.length; i++) {
+        const child = cur.childNodes.item(i);
+        if (child) walker.push(child);
+      }
     }
   }
   return s;
 }
 
-export function childrenByLocalName(node: Element, local: string): Element[] {
-  const out: Element[] = [];
+export function childrenByLocalName(
+  node: XmlElement,
+  local: string,
+): XmlElement[] {
+  const out: XmlElement[] = [];
   const kids = node.childNodes;
   for (let i = 0; i < kids.length; i += 1) {
     const k = kids.item(i);
-    if (k.nodeType === 1 && (k as Element).localName === local)
-      out.push(k as Element);
+    if (k && isElement(k) && k.localName === local) out.push(k);
   }
   return out;
 }

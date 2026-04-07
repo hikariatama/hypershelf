@@ -118,11 +118,18 @@ export function ViewSwitcher() {
       return;
     }
     setIsUpdating(true);
-    const { hiddenFields, sorting, fieldOrder, isFiltering, filters } =
-      useHypershelf.getState();
+    const {
+      hiddenFields,
+      frozenFields,
+      sorting,
+      fieldOrder,
+      isFiltering,
+      filters,
+    } = useHypershelf.getState();
     updateView({
       viewId: activeViewId,
       hiddenFields: hiddenFields,
+      frozenFields: frozenFields,
       sorting: sorting,
       fieldOrder: fieldOrder,
       enableFiltering: isFiltering,
@@ -140,13 +147,20 @@ export function ViewSwitcher() {
 
   const createViewWrapped = (name: string) => {
     let data: (typeof createView)["arguments"] = { name: name };
-    if (!activeView && isDirty) {
-      const { hiddenFields, sorting, fieldOrder, isFiltering, filters } =
-        useHypershelf.getState();
+    if (isDirty) {
+      const {
+        hiddenFields,
+        frozenFields,
+        sorting,
+        fieldOrder,
+        isFiltering,
+        filters,
+      } = useHypershelf.getState();
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       data = {
         ...data,
         hiddenFields: hiddenFields,
+        frozenFields: frozenFields,
         sorting: sorting,
         fieldOrder: fieldOrder,
         enableFiltering: isFiltering,

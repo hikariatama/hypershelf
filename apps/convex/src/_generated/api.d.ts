@@ -25,6 +25,7 @@ import type * as lib_integrations_vsphere_parseInventory from "../lib/integratio
 import type * as lib_integrations_vsphere_types from "../lib/integrations/vsphere/types.js";
 import type * as lib_integrations_vsphere_utils from "../lib/integrations/vsphere/utils.js";
 import type * as lib_redis_index from "../lib/redis/index.js";
+import type * as lib_vsphereCacheKey from "../lib/vsphereCacheKey.js";
 import type * as locks from "../locks.js";
 import type * as migrations from "../migrations.js";
 import type * as system from "../system.js";
@@ -41,14 +42,6 @@ import type {
   FunctionReference,
 } from "convex/server";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 declare const fullApi: ApiFromModules<{
   assets: typeof assets;
   auth: typeof auth;
@@ -67,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   "lib/integrations/vsphere/types": typeof lib_integrations_vsphere_types;
   "lib/integrations/vsphere/utils": typeof lib_integrations_vsphere_utils;
   "lib/redis/index": typeof lib_redis_index;
+  "lib/vsphereCacheKey": typeof lib_vsphereCacheKey;
   locks: typeof locks;
   migrations: typeof migrations;
   system: typeof system;
@@ -77,14 +71,30 @@ declare const fullApi: ApiFromModules<{
   vsphereNode: typeof vsphereNode;
   wayback: typeof wayback;
 }>;
-declare const fullApiWithMounts: typeof fullApi;
 
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "internal">
 >;
 

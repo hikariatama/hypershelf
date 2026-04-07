@@ -51,6 +51,9 @@ export const fieldTypesMap: Record<
 export const getPropsForType = (type: string) =>
   fieldTypes.find((t) => t.key === type)?.fieldProps ?? [];
 
+export const getFieldTypeConfig = (type: string) =>
+  fieldTypes.find((fieldType) => fieldType.key === type);
+
 export type PlainFieldTypes = (typeof plainFieldTypesRaw)[number]["key"];
 export type NonSystemKeys = "name" | "type" | "required" | "hidden";
 export type SystemKeys = Exclude<

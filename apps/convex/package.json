@@ -6,6 +6,7 @@
     "./_generated/dataModel": "./src/_generated/dataModel.d.ts",
     "./_generated/api": "./src/_generated/api.js",
     "./lib/integrations/vsphere": "./src/lib/integrations/vsphere/index.ts",
+    "./lib/vsphereCacheKey": "./src/lib/vsphereCacheKey.ts",
     "./schema": "./src/schema.ts",
     "./utils": "./src/utils.ts"
   },
@@ -28,9 +29,9 @@
   "dependencies": {
     "@convex-dev/auth": "catalog:",
     "@convex-dev/migrations": "^0.2.9",
-    "@xmldom/xmldom": "^0.8.11",
-    "convex": "catalog:",
-    "redis": "^5.8.3",
+    "@xmldom/xmldom": "^0.9.9",
+    "convex": "1.34.1",
+    "redis": "^5.11.0",
     "zod": "catalog:"
   },
   "devDependencies": {

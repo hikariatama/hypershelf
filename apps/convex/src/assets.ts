@@ -244,7 +244,7 @@ export const getMarkdown = internalQuery({
       return { content: null };
     }
     const field = await ctx.db.get(fieldId);
-    if (!field || field.type !== "markdown") {
+    if (field?.type !== "markdown") {
       return { content: null };
     }
     const value = asset.metadata?.[fieldId];

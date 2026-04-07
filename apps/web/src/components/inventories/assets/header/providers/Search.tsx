@@ -1,6 +1,5 @@
 "use client";
 
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -17,6 +16,7 @@ import {
 import type { IndexedVM } from "@hypershelf/convex/schema";
 import { useHypershelf } from "@hypershelf/lib/stores";
 import { cn } from "@hypershelf/lib/utils";
+import { useScopedHotkeys } from "@hypershelf/ui/hotkeys";
 import { HypershelfIcon, VSphereIcon } from "@hypershelf/ui/icons";
 import { Button } from "@hypershelf/ui/primitives/button";
 import {
@@ -39,13 +39,13 @@ function VSphereVM({ vm }: { vm: IndexedVM }) {
     const ipField = state.magicFields.magic__ip;
     return Boolean(
       hostnameField &&
-        ipField &&
-        (Object.values(state.assets).find(
-          (a) => a.asset.metadata?.[hostnameField] === vm.hostname,
-        ) ??
-          Object.values(state.assets).find(
-            (a) => a.asset.metadata?.[ipField] === vm.primaryIp,
-          )),
+      ipField &&
+      (Object.values(state.assets).find(
+        (a) => a.asset.metadata?.[hostnameField] === vm.hostname,
+      ) ??
+        Object.values(state.assets).find(
+          (a) => a.asset.metadata?.[ipField] === vm.primaryIp,
+        )),
     );
   });
 
@@ -220,48 +220,57 @@ export function Search({ expanded }: { expanded?: boolean }) {
     return () => window.clearTimeout(handle);
   }, [inputValue, setSearch, search]);
 
-  useEffect(() => {
-    const down = (e: KeyboardEvent | ReactKeyboardEvent<HTMLInputElement>) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "л")) {
-        e.preventDefault();
-        setOpen(true);
-      }
-
-      if (
-        open &&
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        (e.key === "v" || e.key === "м")
-      ) {
-        e.preventDefault();
-        setDisplayVSphere((v) => !v);
-      }
-
-      if (
-        open &&
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        (e.key === "f" || e.key === "а")
-      ) {
-        e.preventDefault();
-        setIsFiltering(!isFiltering);
-      }
-
-      if (open && e.key === "Escape" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        setOpen(false);
-        setSearch("");
-        setInputValue("");
-      }
-
-      if (open && e.key === "Escape" && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        setOpen(false);
-      }
-    };
-    document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
-  }, [open, setSearch, setIsFiltering, isFiltering]);
+  useScopedHotkeys(
+    [
+      {
+        hotkey: "Mod+K",
+        callback: () => {
+          setOpen(true);
+        },
+        scope: "app",
+      },
+      {
+        hotkey: "Mod+Shift+V",
+        callback: () => {
+          setDisplayVSphere((value) => !value);
+        },
+        enabled: open,
+        scope: "app",
+      },
+      {
+        hotkey: "Mod+Shift+F",
+        callback: () => {
+          setIsFiltering(!isFiltering);
+        },
+        enabled: open,
+        scope: "app",
+      },
+      {
+        hotkey: "Mod+Escape",
+        callback: () => {
+          setOpen(false);
+          setSearch("");
+          setInputValue("");
+        },
+        enabled: open,
+        scope: "app",
+      },
+      {
+        hotkey: "Escape",
+        callback: () => {
+          setOpen(false);
+        },
+        enabled: open,
+        scope: "app",
+      },
+    ],
+    {
+      ignoreInputs: true,
+      meta: {
+        name: "Search",
+      },
+    },
+  );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
