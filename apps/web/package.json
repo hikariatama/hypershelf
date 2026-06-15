@@ -29,7 +29,7 @@
     "exceljs": "^4.4.0",
     "hibp": "^15.2.1",
     "json-logic-js": "^2.0.5",
-    "next": "^15.5.14",
+    "next": "^15.5.19",
     "react": "catalog:react19",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",

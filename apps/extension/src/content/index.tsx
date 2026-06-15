@@ -8,7 +8,7 @@ import { useConvex } from "@hypershelf/lib/hooks";
 
 import type { Tokens } from "../shared/types";
 import type { ConnectorAdapter } from "./adapters/types";
-import { NEXT_PUBLIC_CONVEX_URL } from "~/shared/env";
+import { NEXT_PUBLIC_CONVEX_URL, NEXT_PUBLIC_SITE_URL } from "~/shared/env";
 import { ensureTokens, resetAuth } from "../shared/auth";
 import { connectors } from "./adapters";
 import { ShadowPortalProvider } from "./shadow-portal/PortalProvider";
@@ -16,6 +16,36 @@ import sheet from "./shared.css" with { type: "css" };
 import { log } from "./ui/banner";
 
 const convex = new ConvexReactClient(NEXT_PUBLIC_CONVEX_URL);
+
+const isHypershelfOrigin = (): boolean => {
+  if (!NEXT_PUBLIC_SITE_URL) return false;
+  try {
+    return window.location.origin === new URL(NEXT_PUBLIC_SITE_URL).origin;
+  } catch {
+    return false;
+  }
+};
+
+const dispatchExtensionReady = (): void => {
+  if (!isHypershelfOrigin()) return;
+  const manifest = chrome.runtime.getManifest();
+  window.dispatchEvent(
+    new CustomEvent("hypershelf:extension-ready", {
+      detail: {
+        name: manifest.name,
+        version: manifest.version,
+      },
+    }),
+  );
+};
+
+const installExtensionHandshake = (): void => {
+  if (!isHypershelfOrigin()) return;
+  window.addEventListener("hypershelf:web-ready", dispatchExtensionReady);
+  dispatchExtensionReady();
+};
+
+installExtensionHandshake();
 
 const selectAdapter = (doc: Document): ConnectorAdapter | null => {
   for (const c of connectors) {

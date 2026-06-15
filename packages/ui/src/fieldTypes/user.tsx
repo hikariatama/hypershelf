@@ -197,6 +197,7 @@ function InlineUser({
     return (
       <div
         className={cn(
+          "inline",
           (!value || !users[value]) && "text-muted-foreground/50 italic",
         )}
       >

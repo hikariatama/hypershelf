@@ -9,6 +9,7 @@ import type {
   TableCellEditorHandle,
 } from "@hypershelf/ui";
 import { api } from "@hypershelf/convex/_generated/api";
+import { useHypershelf } from "@hypershelf/lib/stores";
 import { cn } from "@hypershelf/lib/utils";
 import { HotkeyScopeProvider, useScopedHotkeys } from "@hypershelf/ui/hotkeys";
 import { Button } from "@hypershelf/ui/primitives/button";
@@ -146,6 +147,7 @@ export function DeleteAsset({
   const tableKeyboard = useTableKeyboard();
   const editorRef = useRef<TableCellEditorHandle>(null);
   const tableCell = useTableCellProps(rowIndex, columnIndex);
+  const assetsReadOnly = useHypershelf((state) => state.assetsReadOnly);
 
   useEffect(() => {
     tableKeyboard.registerEditor(rowIndex, columnIndex, editorRef.current);
@@ -160,10 +162,18 @@ export function DeleteAsset({
         tableKeyboard.registerElement(rowIndex, columnIndex, node);
       }}
       data-table-cell-key={`${rowIndex}:${columnIndex}`}
-      tabIndex={tableCell.active && tableCell.mode === "navigation" ? 0 : -1}
+      tabIndex={
+        !assetsReadOnly && tableCell.active && tableCell.mode === "navigation"
+          ? 0
+          : -1
+      }
       role="gridcell"
-      aria-selected={tableCell.active}
+      aria-selected={!assetsReadOnly && tableCell.active}
       onClick={(event) => {
+        if (assetsReadOnly) {
+          event.preventDefault();
+          return;
+        }
         if (event.target === event.currentTarget) {
           tableKeyboard.setActiveCell(rowIndex, columnIndex);
           tableCell.onModeChange("editing");
@@ -171,6 +181,12 @@ export function DeleteAsset({
         }
       }}
       onFocusCapture={(event) => {
+        if (assetsReadOnly) {
+          if (event.target instanceof HTMLElement) {
+            event.target.blur();
+          }
+          return;
+        }
         if (
           !(event.target instanceof Node) ||
           !event.currentTarget.contains(event.target)
@@ -184,29 +200,43 @@ export function DeleteAsset({
         }
       }}
       onMouseDownCapture={(event) => {
+        if (assetsReadOnly) {
+          event.preventDefault();
+          return;
+        }
         if (event.target !== event.currentTarget) return;
         tableKeyboard.setActiveCell(rowIndex, columnIndex);
         tableKeyboard.setMode("navigation");
       }}
       onFocus={(event) => {
         if (event.target !== event.currentTarget) return;
+        if (assetsReadOnly) {
+          event.currentTarget.blur();
+          return;
+        }
         tableKeyboard.setActiveCell(rowIndex, columnIndex);
       }}
       className={cn(
         "transition-shadow duration-75 outline-none focus:outline-none focus-visible:outline-none",
-        tableCell.focused && "ring-2 ring-brand/50 ring-inset",
+        !assetsReadOnly &&
+          tableCell.focused &&
+          "ring-2 ring-brand/50 ring-inset",
       )}
     >
       <HotkeyScopeProvider
         scope="table-editor"
-        active={tableCell.active && tableCell.mode === "editing"}
+        active={
+          !assetsReadOnly && tableCell.active && tableCell.mode === "editing"
+        }
         blockScopes={["table", "app"]}
       >
-        <DeleteAssetCell
-          assetId={assetId}
-          editorRef={editorRef}
-          tableCell={tableCell}
-        />
+        <div inert={assetsReadOnly ? true : undefined} className="contents">
+          <DeleteAssetCell
+            assetId={assetId}
+            editorRef={editorRef}
+            tableCell={tableCell}
+          />
+        </div>
       </HotkeyScopeProvider>
     </TableCell>
   );

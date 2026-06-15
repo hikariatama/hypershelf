@@ -203,7 +203,7 @@ function InlineDate({
 
   if (readonly) {
     return (
-      <div className={cn(!date && "text-muted-foreground/50 italic")}>
+      <div className={cn("inline", !date && "text-muted-foreground/50 italic")}>
         {date ? format(date, "PPP", { locale: ru }) : "пусто"}
       </div>
     );

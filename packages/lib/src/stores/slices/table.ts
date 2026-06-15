@@ -1,15 +1,20 @@
-import { isEqual } from "lodash";
-
 import type { Id } from "@hypershelf/convex/_generated/dataModel";
 import type { IndexedVM } from "@hypershelf/convex/schema";
 
 import type { ImmerStateCreator, TableSlice } from "../types";
+import { compactFieldOrder, getEffectiveFieldOrder } from "../fieldOrder";
 
 export const tableSlice: ImmerStateCreator<TableSlice> = (set) => ({
   toggleHiding: () => {
     set((state) => {
       state.hiding = !state.hiding;
       localStorage.setItem("hiding", state.hiding ? "1" : "0");
+    });
+  },
+  toggleAssetsReadOnly: () => {
+    set((state) => {
+      state.assetsReadOnly = !state.assetsReadOnly;
+      localStorage.setItem("assetsReadOnly", state.assetsReadOnly ? "1" : "0");
     });
   },
   setSorting: (sorting) => {
@@ -71,17 +76,16 @@ export const tableSlice: ImmerStateCreator<TableSlice> = (set) => ({
   },
   reorderField: (from, to) =>
     set((state) => {
-      if (state.fieldOrder.length === 0) {
-        state.fieldOrder = [...state.fieldIds];
-      }
-      const fromIndex = state.fieldOrder.indexOf(from);
-      const toIndex = state.fieldOrder.indexOf(to);
+      const nextFieldOrder = getEffectiveFieldOrder(
+        state.fieldIds,
+        state.fieldOrder,
+      );
+      const fromIndex = nextFieldOrder.indexOf(from);
+      const toIndex = nextFieldOrder.indexOf(to);
       if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
-      state.fieldOrder.splice(fromIndex, 1);
-      state.fieldOrder.splice(toIndex, 0, from);
-      if (isEqual(state.fieldOrder, state.fieldIds)) {
-        state.fieldOrder = [];
-      }
+      nextFieldOrder.splice(fromIndex, 1);
+      nextFieldOrder.splice(toIndex, 0, from);
+      state.fieldOrder = compactFieldOrder(state.fieldIds, nextFieldOrder);
     }),
   setFilters: (filters) => {
     set((state) => {

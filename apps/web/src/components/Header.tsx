@@ -5,7 +5,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useConvexAuth, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { GitBranch, LogIn, LogOut, Settings2, Table2 } from "lucide-react";
+import {
+  GitBranch,
+  LogIn,
+  LogOut,
+  Plug,
+  Settings2,
+  Table2,
+} from "lucide-react";
 
 import { api } from "@hypershelf/convex/_generated/api";
 import { cn } from "@hypershelf/lib/utils";
@@ -134,6 +141,10 @@ export default function Header() {
                 <NavLink href="/schemas" label="Схемы">
                   <span className="lg:inline hidden">Схемы</span>
                   <GitBranch className="size-4 lg:hidden inline" />
+                </NavLink>
+                <NavLink href="/integrations" label="Интеграции">
+                  <span className="lg:inline hidden">Интеграции</span>
+                  <Plug className="size-4 lg:hidden inline" />
                 </NavLink>
               </>
             )}

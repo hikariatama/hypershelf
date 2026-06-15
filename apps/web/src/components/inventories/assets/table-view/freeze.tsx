@@ -15,7 +15,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import type { Id } from "@hypershelf/convex/_generated/dataModel";
 import type { State } from "@hypershelf/lib/stores/types";
-import { useHypershelf } from "@hypershelf/lib/stores";
+import { getEffectiveFieldOrder, useHypershelf } from "@hypershelf/lib/stores";
 
 export type FrozenColumnMode = "inline" | "left" | "right";
 
@@ -41,7 +41,9 @@ const TableFreezeContext = createContext<TableFreezeContextValue | null>(null);
 
 export function getOrderedVisibleFieldIds(state: State) {
   const positions = new Map(
-    state.fieldOrder.map((fieldId, index) => [fieldId, index] as const),
+    getEffectiveFieldOrder(state.fieldIds, state.fieldOrder).map(
+      (fieldId, index) => [fieldId, index] as const,
+    ),
   );
 
   return state.fieldIds

@@ -9,6 +9,7 @@ const isProtectedRoute = createRouteMatcher([
   "/",
   "/fields",
   "/schemas",
+  "/integrations",
   "/integrations/auth",
 ]);
 

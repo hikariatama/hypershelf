@@ -18,6 +18,7 @@ export const PopoverWidget = ({ hostname }: { hostname: string | null }) => {
   const [open, setOpen] = useState(false);
   const fields = useQuery(api.fields.get, {});
   const assets = useQuery(api.assets.get, {});
+  const extensionPreferences = useQuery(api.extensionPreferences.get);
   const asset = useMemo(() => {
     if (!fields || !assets) return null;
     const hostField = fields.fields.find(
@@ -40,6 +41,28 @@ export const PopoverWidget = ({ hostname }: { hostname: string | null }) => {
     const row = assets.assets.find((a) => a.asset.metadata?.[fid] === hostname);
     return row === undefined;
   }, [fields, assets, hostname]);
+  const visibleFields = useMemo(() => {
+    if (!fields) return [];
+    const hiddenFields = new Set(extensionPreferences?.hiddenFields ?? []);
+    const positions = new Map(
+      (extensionPreferences?.fieldOrder ?? []).map(
+        (fieldId, index) => [fieldId, index] as const,
+      ),
+    );
+
+    return fields.fields
+      .filter(({ field }) => !field.hidden && !hiddenFields.has(field._id))
+      .sort((left, right) => {
+        const leftPosition = positions.get(left.field._id);
+        const rightPosition = positions.get(right.field._id);
+
+        if (leftPosition == null && rightPosition == null) return 0;
+        if (leftPosition == null) return 1;
+        if (rightPosition == null) return -1;
+
+        return leftPosition - rightPosition;
+      });
+  }, [fields, extensionPreferences]);
 
   if (notFound) {
     return <HypershelfIcon className="text-red-500 size-6 p-1" />;
@@ -80,20 +103,20 @@ export const PopoverWidget = ({ hostname }: { hostname: string | null }) => {
         {fields && asset && (
           <div className="h-full w-full">
             <div className="gap-1 text-xs no-scrollbar p-2 flex h-full w-full flex-col overflow-scroll">
-              {fields.fields.map(({ field }) => {
-                if (!asset.asset.metadata || field.hidden) return null;
+              {visibleFields.map(({ field }) => {
+                if (!asset.asset.metadata) return null;
                 return (
                   <div
                     key={field._id}
-                    className="gap-1 px-2 py-1 text-sm flex items-center rounded-md border border-border text-foreground"
+                    className="px-2 py-1 text-sm rounded-md border border-border text-foreground leading-5"
                   >
                     <DynamicIcon
                       name={(field.extra?.icon ?? "circle") as IconName}
-                      className="size-3.5 text-muted-foreground"
+                      className="mr-1 inline-block size-3.5 align-[-2px] text-muted-foreground"
                     />
-                    <div className="font-medium text-muted-foreground">
+                    <span className="font-medium text-muted-foreground">
                       {field.name}:
-                    </div>{" "}
+                    </span>{" "}
                     <FieldRenderer
                       assetId={asset.asset._id}
                       fieldId={field._id}

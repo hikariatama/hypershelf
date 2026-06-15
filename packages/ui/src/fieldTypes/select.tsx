@@ -388,7 +388,10 @@ function InlineSelect({
   if (readonly) {
     return (
       <div
-        className={cn(value.length === 0 && "text-muted-foreground/50 italic")}
+        className={cn(
+          "inline",
+          value.length === 0 && "text-muted-foreground/50 italic",
+        )}
       >
         {value.length > 0
           ? multiselect

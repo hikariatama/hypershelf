@@ -2,6 +2,7 @@ import { isEqual } from "lodash";
 
 import { useHypershelf } from ".";
 import { filtersEqual } from "../utils/zustand";
+import { fieldOrdersEqual } from "./fieldOrder";
 
 export const useIsViewDirty = () => {
   return useHypershelf((state) => {
@@ -22,7 +23,11 @@ export const useIsViewDirty = () => {
 
     return (
       !isEqual(view.sorting ?? {}, state.sorting) ||
-      !isEqual(view.fieldOrder ?? [], state.fieldOrder) ||
+      !fieldOrdersEqual(
+        state.fieldIds,
+        view.fieldOrder ?? [],
+        state.fieldOrder,
+      ) ||
       !isEqual(view.hiddenFields ?? [], state.hiddenFields) ||
       !isEqual(view.frozenFields ?? [], state.frozenFields) ||
       (view.enableFiltering ?? false) !== state.isFiltering ||

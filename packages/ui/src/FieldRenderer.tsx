@@ -14,14 +14,14 @@ import { fieldTypes } from "./fieldTypes";
 
 function Unset({ required }: { required?: boolean }) {
   return (
-    <div
+    <span
       className={cn(
         "select-none",
         !required && "text-muted-foreground/50 italic",
       )}
     >
       пусто
-    </div>
+    </span>
   );
 }
 
@@ -76,6 +76,6 @@ export function FieldRenderer({
   )
     return <Unset required={isRequired} />;
 
-  if (Array.isArray(value)) return value.join(", ");
-  return String(value);
+  if (Array.isArray(value)) return <span>{value.join(", ")}</span>;
+  return <span>{String(value)}</span>;
 }

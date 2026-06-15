@@ -63,16 +63,14 @@ export function VMControlInventory({
                 const value = invNode.asset.metadata[field.id] as ValueType;
                 if (!value) return null;
                 return (
-                  <div key={field.id} className="gap-1.5 flex items-center">
-                    <div className="gap-1 flex items-center">
-                      <DynamicIcon
-                        name={field.icon as IconName}
-                        className="size-4"
-                      />
-                      <span className="font-medium whitespace-pre">
-                        {field.name}:
-                      </span>
-                    </div>
+                  <div key={field.id} className="leading-5">
+                    <DynamicIcon
+                      name={field.icon as IconName}
+                      className="mr-1 inline-block size-4 align-[-3px]"
+                    />
+                    <span className="font-medium whitespace-pre">
+                      {field.name}:
+                    </span>{" "}
                     <FieldRenderer
                       assetId={invNode.asset._id}
                       fieldId={field.id}

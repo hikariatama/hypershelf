@@ -101,9 +101,9 @@ function InlineBoolean({
 
   if (readonly) {
     return value ? (
-      <CircleCheck className="size-4 text-green-500" />
+      <CircleCheck className="size-4 text-green-500 inline-block" />
     ) : (
-      <CirclePlus className="size-4 text-red-500 rotate-45" />
+      <CirclePlus className="size-4 text-red-500 inline-block rotate-45" />
     );
   }
 

@@ -11,6 +11,7 @@ import { QueryBuilder } from "../QueryBuilder";
 import { Search } from "../Search";
 import { Export } from "./Export";
 import { ToggleHiding } from "./ToggleHiding";
+import { ToggleReadOnly } from "./ToggleReadOnly";
 import { Wayback } from "./Wayback";
 
 export function ExtraActions() {
@@ -27,6 +28,7 @@ export function ExtraActions() {
             <Search expanded />
             <QueryBuilder expanded />
           </div>
+          <ToggleReadOnly />
           <ToggleHiding />
           <Wayback />
           <Export />

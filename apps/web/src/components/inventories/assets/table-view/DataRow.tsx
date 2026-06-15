@@ -36,6 +36,7 @@ function DataCell({
   } = useTableFreeze();
   const tableKeyboard = useTableKeyboard();
   const fieldType = useHypershelf((state) => state.fields[fieldId]?.field.type);
+  const assetsReadOnly = useHypershelf((state) => state.assetsReadOnly);
   const isHidden = useHypershelf((state) =>
     state.hiddenFields.includes(fieldId),
   );
@@ -64,11 +65,19 @@ function DataCell({
       }}
       data-table-cell-key={`${rowIndex}:${columnIndex}`}
       key={`${assetId}-${fieldId}`}
-      tabIndex={tableCell.active && tableCell.mode === "navigation" ? 0 : -1}
+      tabIndex={
+        !assetsReadOnly && tableCell.active && tableCell.mode === "navigation"
+          ? 0
+          : -1
+      }
       role="gridcell"
-      aria-selected={tableCell.active}
+      aria-selected={!assetsReadOnly && tableCell.active}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
+        if (assetsReadOnly) {
+          event.preventDefault();
+          return;
+        }
         if (tableCell.mode !== "navigation") return;
         if ((event.ctrlKey || event.metaKey) && /^\d$/.test(event.key)) {
           const index = Number(event.key) - 1;
@@ -86,6 +95,7 @@ function DataCell({
       }}
       onCopy={(event) => {
         if (event.target !== event.currentTarget) return;
+        if (assetsReadOnly) return;
         if (tableCell.mode !== "navigation") return;
         if (!clipboardEnabled) return;
         const payload = editorRef.current?.copyValue?.();
@@ -99,6 +109,10 @@ function DataCell({
       }}
       onPaste={(event) => {
         if (event.target !== event.currentTarget) return;
+        if (assetsReadOnly) {
+          event.preventDefault();
+          return;
+        }
         if (tableCell.mode !== "navigation") return;
         if (!clipboardEnabled) return;
         const pastedText = event.clipboardData.getData("text");
@@ -133,6 +147,10 @@ function DataCell({
         event.preventDefault();
       }}
       onClick={(event) => {
+        if (assetsReadOnly) {
+          event.preventDefault();
+          return;
+        }
         if (event.target === event.currentTarget) {
           tableKeyboard.setActiveCell(rowIndex, columnIndex);
           tableCell.onModeChange("editing");
@@ -140,6 +158,12 @@ function DataCell({
         }
       }}
       onFocusCapture={(event) => {
+        if (assetsReadOnly) {
+          if (event.target instanceof HTMLElement) {
+            event.target.blur();
+          }
+          return;
+        }
         if (
           !(event.target instanceof Node) ||
           !event.currentTarget.contains(event.target)
@@ -153,12 +177,20 @@ function DataCell({
         }
       }}
       onMouseDownCapture={(event) => {
+        if (assetsReadOnly) {
+          event.preventDefault();
+          return;
+        }
         if (event.target !== event.currentTarget) return;
         tableKeyboard.setActiveCell(rowIndex, columnIndex);
         tableKeyboard.setMode("navigation");
       }}
       onFocus={(event) => {
         if (event.target !== event.currentTarget) return;
+        if (assetsReadOnly) {
+          event.currentTarget.blur();
+          return;
+        }
         tableKeyboard.setActiveCell(rowIndex, columnIndex);
       }}
       style={{
@@ -173,7 +205,9 @@ function DataCell({
       }}
       className={cn(
         "px-2 py-1 relative border-l border-border transition-shadow duration-100 outline-none focus:outline-none focus-visible:outline-none",
-        tableCell.focused && "ring-2 ring-brand/50 ring-inset",
+        !assetsReadOnly &&
+          tableCell.focused &&
+          "ring-2 ring-brand/50 ring-inset",
         isHidden && "opacity-50",
         frozenMode !== "inline" &&
           cn(
@@ -189,10 +223,15 @@ function DataCell({
     >
       <HotkeyScopeProvider
         scope="table-editor"
-        active={tableCell.active && tableCell.mode === "editing"}
+        active={
+          !assetsReadOnly && tableCell.active && tableCell.mode === "editing"
+        }
         blockScopes={["table", "app"]}
       >
-        <div className="max-w-sm m-auto flex w-max items-center justify-center break-words break-all hyphens-auto whitespace-normal">
+        <div
+          inert={assetsReadOnly ? true : undefined}
+          className="max-w-sm m-auto flex w-max items-center justify-center break-words break-all hyphens-auto whitespace-normal"
+        >
           <FieldRenderer
             assetId={assetId}
             editorRef={editorRef}

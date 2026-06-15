@@ -15,6 +15,7 @@ export const portalConnector = {
   observableSelectors: [
     'div[data-testid="reportHostInfoHosts"]',
     'div[data-testid="reportHostInfoAddressNotResolved"]',
+    'span[data-testid="reportHostInfoAddressNotResolved"]',
   ],
   extractHostname: (ctx) => {
     const outOfScope = textFromSelector(
@@ -22,6 +23,11 @@ export const portalConnector = {
       'div[data-testid="reportHostInfoAddressNotResolved"]',
     );
     if (outOfScope) return outOfScope;
+    const outOfScopeSpan = textFromSelector(
+      ctx.doc,
+      'span[data-testid="reportHostInfoAddressNotResolved"]',
+    );
+    if (outOfScopeSpan) return outOfScopeSpan;
     return textFromSelector(
       ctx.doc,
       'div[data-testid="reportHostInfoHosts"] .inline:nth-child(3) span',

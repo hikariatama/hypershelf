@@ -167,6 +167,12 @@ export const viewSchemaInternal = {
   sortBy: v.optional(v.any()),
 };
 
+const extensionPreferenceSchemaInternal = {
+  userId: v.id("users"),
+  hiddenFields: v.array(v.id("fields")),
+  fieldOrder: v.array(v.id("fields")),
+};
+
 export const waybackSchema = {
   actor: v.id("users"),
   when: v.number(),
@@ -219,6 +225,10 @@ export default defineSchema({
     "fieldId",
   ]),
   fields: defineTable(fieldSchemaInternal),
+  extensionPreferences: defineTable(extensionPreferenceSchemaInternal).index(
+    "by_userId",
+    ["userId"],
+  ),
   files: defineTable(fileSchema),
   views: defineTable(viewSchemaInternal),
   system: defineTable({ version: v.string() }),

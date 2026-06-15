@@ -139,6 +139,7 @@ export function TableView() {
     isEqual,
   );
   const reorderField = useHypershelf((state) => state.reorderField);
+  const assetsReadOnly = useHypershelf((state) => state.assetsReadOnly);
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
@@ -162,6 +163,7 @@ export function TableView() {
           <TableKeyboardProvider
             columnCount={freezeLayout.orderedVisibleFieldIds.length + 1}
             containerRef={containerRef}
+            readOnly={assetsReadOnly}
             rowCount={sortedAssetIds.length}
           >
             <DndContext

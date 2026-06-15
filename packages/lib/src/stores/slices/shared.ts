@@ -17,6 +17,13 @@ export const sharedSlice: ImmerStateCreator<SharedSlice> = (set, get) => ({
         state.hiding = true;
       }
 
+      const storedAssetsReadOnly = localStorage.getItem("assetsReadOnly");
+      if (storedAssetsReadOnly === "0") {
+        state.assetsReadOnly = false;
+      } else if (storedAssetsReadOnly === "1") {
+        state.assetsReadOnly = true;
+      }
+
       const url = new URL(window.location.href);
       const rootMoidFromUrl = url.searchParams.get("rootMoid");
       if (rootMoidFromUrl) {

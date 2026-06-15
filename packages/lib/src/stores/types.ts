@@ -51,6 +51,7 @@ export type State = {
   magicFields: Record<string, Id<"fields">>;
 
   hiding: boolean;
+  assetsReadOnly: boolean;
   sorting: SortingDict;
   filters: RuleGroupType | null;
   isFiltering: boolean;
@@ -87,6 +88,7 @@ export type TableSlice = {
   toggleVisibility: (fieldId: Id<"fields">) => void;
   toggleFrozen: (fieldId: Id<"fields">) => void;
   toggleHiding: () => void;
+  toggleAssetsReadOnly: () => void;
   reorderField: (from: Id<"fields">, to: Id<"fields">) => void;
   setFilters: (filters: RuleGroupType | null) => void;
   setIsFiltering: (isFiltering: boolean) => void;

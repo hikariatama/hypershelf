@@ -1,3 +1,4 @@
+import type { StoreApi, UseBoundStore } from "zustand";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -10,6 +11,8 @@ import { sharedSlice } from "./slices/shared";
 import { tableSlice } from "./slices/table";
 import { usersSlice } from "./slices/users";
 import { viewsSlice } from "./slices/views";
+
+export { getEffectiveFieldOrder } from "./fieldOrder";
 
 const initialState: State = {
   assetIds: [],
@@ -26,6 +29,7 @@ const initialState: State = {
   magicFields: {},
 
   hiding: true,
+  assetsReadOnly: false,
   sorting: {},
   filters: null,
   isFiltering: false,
@@ -62,7 +66,9 @@ const initialState: State = {
   highlightLink: null,
 };
 
-export const useHypershelf = create<State & Actions>()(
+export const useHypershelf: UseBoundStore<StoreApi<State & Actions>> = create<
+  State & Actions
+>()(
   devtools(
     immer((...args) => ({
       ...initialState,

@@ -11,6 +11,7 @@
 import type * as assets from "../assets.js";
 import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
+import type * as extensionPreferences from "../extensionPreferences.js";
 import type * as fields from "../fields.js";
 import type * as files from "../files.js";
 import type * as general from "../general.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   assets: typeof assets;
   auth: typeof auth;
   crons: typeof crons;
+  extensionPreferences: typeof extensionPreferences;
   fields: typeof fields;
   files: typeof files;
   general: typeof general;

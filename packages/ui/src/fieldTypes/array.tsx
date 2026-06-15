@@ -264,9 +264,9 @@ export function InlineArray({
 
   if (readonly) {
     return Array.isArray(val) && val.length > 0 ? (
-      <div>{(val as ValueType[]).join(", ")}</div>
+      <div className="inline">{(val as ValueType[]).join(", ")}</div>
     ) : (
-      <div className="text-muted-foreground/50 italic">пусто</div>
+      <div className="inline text-muted-foreground/50 italic">пусто</div>
     );
   }
 

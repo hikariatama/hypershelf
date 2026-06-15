@@ -26,6 +26,7 @@ type TableKeyboardState = {
   activeRowIndex: number;
   focusedCellKey: string | null;
   mode: TableCellMode;
+  readOnly: boolean;
 };
 
 type TableKeyboardContextValue = {
@@ -69,11 +70,13 @@ export function TableKeyboardProvider({
   children,
   columnCount,
   containerRef,
+  readOnly,
   rowCount,
 }: {
   children: ReactNode;
   columnCount: number;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  readOnly: boolean;
   rowCount: number;
 }) {
   const cellsRef = useRef(new Map<string, TableCellRegistration>());
@@ -82,18 +85,23 @@ export function TableKeyboardProvider({
   const hadFocusWithinTableRef = useRef(false);
   const rowCountRef = useRef(rowCount);
   const columnCountRef = useRef(columnCount);
+  const readOnlyRef = useRef(readOnly);
   const stateRef = useRef<TableKeyboardState>({
     activeColumnIndex: 0,
     activeRowIndex: 0,
     focusedCellKey: null,
     mode: "navigation",
+    readOnly,
   });
 
   rowCountRef.current = rowCount;
   columnCountRef.current = columnCount;
+  readOnlyRef.current = readOnly;
 
   const focusActiveCell = useCallback(
     ({ preserveScroll = false }: FocusActiveCellOptions = {}) => {
+      if (readOnlyRef.current) return;
+
       const { activeColumnIndex, activeRowIndex } = stateRef.current;
       const cell = cellsRef.current.get(
         getCellKey(activeRowIndex, activeColumnIndex),
@@ -114,6 +122,8 @@ export function TableKeyboardProvider({
 
   const scheduleFocusActiveCell = useCallback(
     (options?: FocusActiveCellOptions) => {
+      if (readOnlyRef.current) return;
+
       if (focusFrameRef.current != null) {
         cancelAnimationFrame(focusFrameRef.current);
       }
@@ -145,7 +155,8 @@ export function TableKeyboardProvider({
         current.activeRowIndex === next.activeRowIndex &&
         current.activeColumnIndex === next.activeColumnIndex &&
         current.focusedCellKey === next.focusedCellKey &&
-        current.mode === next.mode
+        current.mode === next.mode &&
+        current.readOnly === next.readOnly
       ) {
         return current;
       }
@@ -205,6 +216,8 @@ export function TableKeyboardProvider({
 
   const setMode = useCallback(
     (mode: TableCellMode) => {
+      if (readOnlyRef.current) return;
+
       updateState((current) => ({
         ...current,
         mode,
@@ -218,6 +231,8 @@ export function TableKeyboardProvider({
 
   const setActiveCell = useCallback(
     (rowIndex: number, columnIndex: number) => {
+      if (readOnlyRef.current) return;
+
       updateState((current) => ({
         ...current,
         activeRowIndex: clamp(
@@ -237,6 +252,8 @@ export function TableKeyboardProvider({
 
   const move = useCallback(
     (deltaX: number, deltaY = 0) => {
+      if (readOnlyRef.current) return;
+
       updateState((current) => ({
         ...current,
         activeRowIndex: clamp(
@@ -258,6 +275,8 @@ export function TableKeyboardProvider({
 
   const moveToEdge = useCallback(
     (edge: "start" | "end") => {
+      if (readOnlyRef.current) return;
+
       updateState((current) => ({
         ...current,
         activeColumnIndex:
@@ -271,6 +290,8 @@ export function TableKeyboardProvider({
 
   const moveByPage = useCallback(
     (direction: -1 | 1) => {
+      if (readOnlyRef.current) return;
+
       const { activeColumnIndex, activeRowIndex } = stateRef.current;
       const cell = cellsRef.current.get(
         getCellKey(activeRowIndex, activeColumnIndex),
@@ -290,6 +311,8 @@ export function TableKeyboardProvider({
   );
 
   const beginEdit = useCallback(() => {
+    if (readOnlyRef.current) return;
+
     const { activeColumnIndex, activeRowIndex } = stateRef.current;
     const editor = cellsRef.current.get(
       getCellKey(activeRowIndex, activeColumnIndex),
@@ -312,17 +335,17 @@ export function TableKeyboardProvider({
   }, []);
 
   useEffect(() => {
-    if (rowCount === 0 || columnCount === 0) return;
+    if (readOnly || rowCount === 0 || columnCount === 0) return;
 
     updateState((current) => ({
       ...current,
       activeRowIndex: clamp(current.activeRowIndex, 0, rowCount - 1),
       activeColumnIndex: clamp(current.activeColumnIndex, 0, columnCount - 1),
     }));
-  }, [columnCount, rowCount, updateState]);
+  }, [columnCount, readOnly, rowCount, updateState]);
 
   useEffect(() => {
-    if (rowCount === 0 || columnCount === 0) return;
+    if (readOnly || rowCount === 0 || columnCount === 0) return;
 
     const container = containerRef.current;
 
@@ -341,7 +364,33 @@ export function TableKeyboardProvider({
 
     hadFocusWithinTableRef.current = true;
     scheduleFocusActiveCell();
-  }, [columnCount, containerRef, rowCount, scheduleFocusActiveCell]);
+  }, [columnCount, containerRef, readOnly, rowCount, scheduleFocusActiveCell]);
+
+  useEffect(() => {
+    if (readOnly) {
+      const { activeColumnIndex, activeRowIndex } = stateRef.current;
+      cellsRef.current
+        .get(getCellKey(activeRowIndex, activeColumnIndex))
+        ?.editor?.cancel?.();
+    }
+
+    updateState((current) => ({
+      ...current,
+      focusedCellKey: readOnly ? null : current.focusedCellKey,
+      mode: "navigation",
+      readOnly,
+    }));
+
+    if (!readOnly) return;
+
+    const container = containerRef.current;
+    const activeElement = document.activeElement;
+    if (container && activeElement instanceof HTMLElement) {
+      if (activeElement === container || container.contains(activeElement)) {
+        activeElement.blur();
+      }
+    }
+  }, [containerRef, readOnly, updateState]);
 
   useEffect(() => {
     return () => {
@@ -359,6 +408,17 @@ export function TableKeyboardProvider({
     const handleFocusIn = (event: FocusEvent) => {
       if (!(event.target instanceof Node)) return;
       if (!container.contains(event.target)) return;
+      if (readOnlyRef.current) {
+        if (event.target instanceof HTMLElement) {
+          event.target.blur();
+        }
+        updateState((current) => ({
+          ...current,
+          focusedCellKey: null,
+          mode: "navigation",
+        }));
+        return;
+      }
       hadFocusWithinTableRef.current = true;
 
       const focusedCellKey =
@@ -399,6 +459,7 @@ export function TableKeyboardProvider({
     };
 
     const handleWindowFocus = () => {
+      if (readOnlyRef.current) return;
       if (!hadFocusWithinTableRef.current) return;
       if (stateRef.current.mode !== "navigation") return;
       requestAnimationFrame(() => {
@@ -410,6 +471,7 @@ export function TableKeyboardProvider({
     };
 
     const handleContainerKeyDown = (event: KeyboardEvent) => {
+      if (readOnlyRef.current) return;
       if (event.target !== container) return;
 
       switch (event.key) {
@@ -505,7 +567,11 @@ export function TableKeyboardProvider({
 
   return (
     <TableKeyboardContext.Provider value={value}>
-      <TableKeyboardScopes containerRef={containerRef} rowCount={rowCount}>
+      <TableKeyboardScopes
+        containerRef={containerRef}
+        readOnly={readOnly}
+        rowCount={rowCount}
+      >
         {children}
       </TableKeyboardScopes>
     </TableKeyboardContext.Provider>
@@ -515,10 +581,12 @@ export function TableKeyboardProvider({
 function TableKeyboardScopes({
   children,
   containerRef,
+  readOnly,
   rowCount,
 }: {
   children: ReactNode;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  readOnly: boolean;
   rowCount: number;
 }) {
   const mode = useTableKeyboardMode();
@@ -526,10 +594,14 @@ function TableKeyboardScopes({
   return (
     <HotkeyScopeProvider
       scope="table"
-      active={rowCount > 0}
+      active={rowCount > 0 && !readOnly}
       blockScopes={mode === "editing" ? ["app"] : []}
     >
-      <TableKeyboardShortcuts containerRef={containerRef} rowCount={rowCount} />
+      <TableKeyboardShortcuts
+        containerRef={containerRef}
+        readOnly={readOnly}
+        rowCount={rowCount}
+      />
       {children}
     </HotkeyScopeProvider>
   );
@@ -537,9 +609,11 @@ function TableKeyboardScopes({
 
 function TableKeyboardShortcuts({
   containerRef,
+  readOnly,
   rowCount,
 }: {
   containerRef: React.RefObject<HTMLDivElement | null>;
+  readOnly: boolean;
   rowCount: number;
 }) {
   const { beginEdit, move, moveByPage, moveToEdge } = useTableKeyboard();
@@ -553,7 +627,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           move(-1, 0);
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
       {
@@ -562,7 +636,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           move(1, 0);
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
       {
@@ -571,7 +645,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           move(0, -1);
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
       {
@@ -580,7 +654,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           move(0, 1);
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
       {
@@ -589,7 +663,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           moveToEdge("start");
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
       {
@@ -598,7 +672,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           moveToEdge("end");
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
       {
@@ -607,7 +681,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           moveByPage(-1);
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
       {
@@ -616,7 +690,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           moveByPage(1);
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
       {
@@ -625,7 +699,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           beginEdit();
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
       {
@@ -634,7 +708,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           beginEdit();
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
       {
@@ -643,7 +717,7 @@ function TableKeyboardShortcuts({
           event.preventDefault();
           beginEdit();
         },
-        enabled: rowCount > 0 && mode === "navigation",
+        enabled: rowCount > 0 && !readOnly && mode === "navigation",
         scope: "table",
       },
     ],
@@ -689,6 +763,8 @@ export function useTableCellProps(
     subscribe,
     () => {
       const state = getState();
+      if (state.readOnly) return "0:0:navigation" as const;
+
       const cellKey = getCellKey(rowIndex, columnIndex);
 
       if (

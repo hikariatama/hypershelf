@@ -513,9 +513,9 @@ export function InlineString({
 
   if (readonly) {
     return (
-      <div className={cn(!val && "text-muted-foreground/50 italic")}>
+      <span className={cn(!val && "text-muted-foreground/50 italic")}>
         {val || "пусто"}
-      </div>
+      </span>
     );
   }
 
